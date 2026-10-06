@@ -1,0 +1,39 @@
+name: promote
+
+# Chạy thủ công: sao chép tag image từ môi trường nguồn sang đích và mở Pull Request.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Môi trường nguồn
+        default: dev
+      to:
+        description: Môi trường đích
+        default: prod
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: imranismail/setup-kustomize@v2
+      - name: Install yq
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o "$RUNNER_TEMP/bin/yq"
+          chmod +x "$RUNNER_TEMP/bin/yq"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Promote
+        run: ./scripts/promote.sh "${{ inputs.from }}" "${{ inputs.to }}"
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: promote/${{ inputs.from }}-to-${{ inputs.to }}
+          title: "promote: ${{ inputs.from }} -> ${{ inputs.to }}"
+          commit-message: "chore: promote images ${{ inputs.from }} -> ${{ inputs.to }}"
+          body: |
+            Sao chép tag image từ `${{ inputs.from }}` sang `${{ inputs.to }}`.
+            Sau khi merge, vào ArgoCD bấm Sync cho các app `*-${{ inputs.to }}`.

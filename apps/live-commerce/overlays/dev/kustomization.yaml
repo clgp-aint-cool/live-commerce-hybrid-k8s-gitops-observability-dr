@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: live-commerce-dev
+resources:
+  - ../../base
+  # - secrets/        # bỏ chú thích khi đã có SealedSecret (xem secrets/README.md)
+images:
+  - name: harbor.example.local/live-commerce/chat-service
+    newName: harbor.example.local/live-commerce/chat-service
+    newTag: "0000000"   # CI/promote ghi đè
+  - name: harbor.example.local/live-commerce/product-service
+    newName: harbor.example.local/live-commerce/product-service
+    newTag: "0000000"   # CI/promote ghi đè
+  - name: harbor.example.local/live-commerce/order-service
+    newName: harbor.example.local/live-commerce/order-service
+    newTag: "0000000"   # CI/promote ghi đè
+  - name: harbor.example.local/live-commerce/web
+    newName: harbor.example.local/live-commerce/web
+    newTag: "0000000"   # CI/promote ghi đè
+patches:
+  - target:
+      kind: Ingress
+      name: kong-routes
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.live.example.com
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: chat-service
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: order-service
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3

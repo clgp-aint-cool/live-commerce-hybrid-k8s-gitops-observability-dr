@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: live-commerce-dev
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: live-commerce
+  source:
+    repoURL: https://github.com/<ORG>/live-commerce-infra.git
+    targetRevision: main
+    path: apps/live-commerce/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: live-commerce-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

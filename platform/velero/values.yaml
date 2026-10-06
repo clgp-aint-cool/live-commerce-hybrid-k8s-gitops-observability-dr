@@ -1,0 +1,18 @@
+# Sao lưu sang CMC Object Storage (S3-compatible). Điền các giá trị <...>.
+configuration:
+  backupStorageLocation:
+    - name: cmc-s3
+      provider: aws
+      bucket: <BUCKET>
+      config:
+        region: <REGION>
+        s3ForcePathStyle: "true"
+        s3Url: https://<CMC_S3_ENDPOINT>
+credentials:
+  existingSecret: velero-credentials    # SealedSecret
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:<PIN_VERSION>
+    volumeMounts:
+      - mountPath: /target
+        name: plugins

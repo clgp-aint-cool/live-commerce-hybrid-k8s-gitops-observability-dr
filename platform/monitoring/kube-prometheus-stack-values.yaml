@@ -1,0 +1,6 @@
+grafana:
+  admin:
+    existingSecret: grafana-admin     # SealedSecret chứa admin-user / admin-password
+prometheus:
+  prometheusSpec:
+    retention: 7d

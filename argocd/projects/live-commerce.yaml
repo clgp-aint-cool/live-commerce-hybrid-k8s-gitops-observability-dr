@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: live-commerce
+  namespace: argocd
+spec:
+  description: Workload ứng dụng (live-commerce, moderation) cho dev và prod
+  sourceRepos:
+    - https://github.com/<ORG>/live-commerce-infra.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: live-commerce*
+    - server: https://kubernetes.default.svc
+      namespace: moderation*
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace

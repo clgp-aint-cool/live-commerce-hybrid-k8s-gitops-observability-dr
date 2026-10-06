@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kong
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://charts.konghq.com
+      chart: kong
+      targetRevision: "<PIN_VERSION>"     # ghim phiên bản chart cụ thể, không dùng '*'
+      helm:
+        releaseName: kong
+        valueFiles:
+          - $values/platform/kong/values.yaml
+    - repoURL: https://github.com/<ORG>/live-commerce-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kong
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,9 @@
+# HAProxy Kubernetes Ingress Controller (haproxytech). Kiểm tra tên khóa theo phiên bản chart đã ghim.
+controller:
+  ingressClass: haproxy
+  service:
+    type: NodePort
+    # CMC Load Balancer chuyển :443 -> NodePort này. Đổi cho khớp cấu hình LB.
+    nodePorts:
+      http: 30080
+      https: 30443

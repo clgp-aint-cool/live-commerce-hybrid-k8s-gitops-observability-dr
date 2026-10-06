@@ -1,0 +1,35 @@
+# HAProxy nhận traffic từ CMC Load Balancer, chuyển toàn bộ vào Kong.
+# Kong định tuyến theo host/path tới service của từng môi trường (xem kong-routes trong apps/*/base).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edge
+  namespace: kong
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - live.example.com
+        - dev.live.example.com
+      secretName: cloudflare-cert     # SealedSecret (chứng chỉ origin của Cloudflare) trong namespace kong
+  rules:
+    - host: live.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kong-kong-proxy
+                port:
+                  number: 80
+    - host: dev.live.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kong-kong-proxy
+                port:
+                  number: 80

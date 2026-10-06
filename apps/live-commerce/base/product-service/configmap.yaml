@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+data:
+  PORT: "3002"
+  REDIS_URL: "redis://<REDIS_HOST>:6379"

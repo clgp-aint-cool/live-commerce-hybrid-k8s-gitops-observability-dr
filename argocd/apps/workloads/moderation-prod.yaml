@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: moderation-prod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: live-commerce
+  source:
+    repoURL: https://github.com/<ORG>/live-commerce-infra.git
+    targetRevision: main
+    path: apps/moderation/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: moderation
+  # prod: KHÔNG tự sync, người có quyền bấm Sync trên ArgoCD sau khi merge PR promote
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

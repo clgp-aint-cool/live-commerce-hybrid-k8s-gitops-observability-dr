@@ -1,0 +1,16 @@
+# NodePort để AWS (qua VPN, Palo Alto) gọi webhook tới <node-ip>:<nodePort>.
+# nodePort cố định được đặt trong từng overlay để dev và prod không trùng nhau.
+apiVersion: v1
+kind: Service
+metadata:
+  name: moderation-webhook
+  labels:
+    app.kubernetes.io/name: moderation-service
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: moderation-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: Cluster add-ons (ingress, Kong, monitoring, backup, sealed-secrets)
+  sourceRepos:
+    - https://github.com/<ORG>/live-commerce-infra.git
+    - https://charts.konghq.com
+    - https://haproxytech.github.io/helm-charts
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://vmware-tanzu.github.io/helm-charts
+    - https://bitnami-labs.github.io/sealed-secrets
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '*'
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'

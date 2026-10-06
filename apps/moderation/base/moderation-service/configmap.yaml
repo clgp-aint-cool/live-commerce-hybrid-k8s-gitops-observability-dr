@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moderation-service-config
+data:
+  PORT: "3004"
+  CHAT_SERVICE_URL: "http://chat-service.live-commerce.svc.cluster.local"

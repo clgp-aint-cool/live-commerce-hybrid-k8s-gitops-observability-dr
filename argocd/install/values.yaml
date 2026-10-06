@@ -1,0 +1,6 @@
+# Giá trị tham khảo cho Helm chart argo-cd (argo-helm). Cài ArgoCD lần đầu bằng tay, xem README.md cùng thư mục.
+configs:
+  params:
+    server.insecure: true        # TLS kết thúc ở ingress/Cloudflare
+  cm:
+    timeout.reconciliation: 180s

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: moderation
+resources:
+  - ../../base
+  # - secrets/        # harbor-registry, moderation-service-secret (WEBHOOK_SHARED_SECRET)
+images:
+  - name: harbor.example.local/live-commerce/moderation-service
+    newName: harbor.example.local/live-commerce/moderation-service
+    newTag: "0000000"   # CI/promote ghi đè
+patches:
+  - target:
+      kind: Service
+      name: moderation-webhook
+    patch: |-
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30084

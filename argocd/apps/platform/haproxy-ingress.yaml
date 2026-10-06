@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: haproxy-ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://haproxytech.github.io/helm-charts
+      chart: kubernetes-ingress
+      targetRevision: "<PIN_VERSION>"     # ghim phiên bản chart cụ thể, không dùng '*'
+      helm:
+        releaseName: haproxy-ingress
+        valueFiles:
+          - $values/platform/haproxy-ingress/values.yaml
+    - repoURL: https://github.com/<ORG>/live-commerce-infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: haproxy-ingress
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

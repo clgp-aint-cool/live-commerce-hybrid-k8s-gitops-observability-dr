@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moderation-service
+  labels:
+    app.kubernetes.io/name: moderation-service
+    app.kubernetes.io/part-of: live-commerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: moderation-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: moderation-service
+        app.kubernetes.io/part-of: live-commerce
+    spec:
+      imagePullSecrets:
+        - name: harbor-registry
+      containers:
+        - name: moderation-service
+          image: harbor.example.local/live-commerce/moderation-service:latest   # tag thật do CI ghi đè trong overlay (images:)
+          ports:
+            - name: http
+              containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: moderation-service-config
+            - secretRef:
+                name: moderation-service-secret
+                optional: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,42 @@
+# Định tuyến của Kong (ingress class kong) tới các service cùng namespace.
+# TODO: kiểm tra cách bật proxy WebSocket cho /ws theo tài liệu Kong Ingress Controller.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kong-routes
+  annotations:
+    konghq.com/strip-path: "false"
+spec:
+  ingressClassName: kong
+  rules:
+    - host: live.example.com
+      http:
+        paths:
+          - path: /api/products
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 80
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 80
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80

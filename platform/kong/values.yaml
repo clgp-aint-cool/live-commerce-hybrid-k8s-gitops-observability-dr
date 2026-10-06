@@ -1,0 +1,7 @@
+# Kong + ingress controller. Service proxy tên `kong-kong-proxy` (release `kong`, namespace `kong`).
+ingressController:
+  enabled: true
+env:
+  database: "off"
+proxy:
+  type: ClusterIP

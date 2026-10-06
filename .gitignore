@@ -1,0 +1,7 @@
+# KHÔNG commit secret thường. Chỉ commit *.sealed.yaml
+*.secret.yaml
+*-secret.yaml
+!*.sealed.yaml
+.env
+*.pem
+*.key

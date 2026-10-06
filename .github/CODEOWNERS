@@ -1,0 +1,4 @@
+# Thay <ORG>/<team> bằng team thật.
+*                  @<ORG>/devops
+/apps/*/overlays/prod/   @<ORG>/devops @<ORG>/dev-leads
+/argocd/           @<ORG>/devops
