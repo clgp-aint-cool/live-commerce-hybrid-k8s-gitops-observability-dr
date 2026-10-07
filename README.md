@@ -27,6 +27,8 @@ live-commerce-infra/
 
 ## Bắt đầu
 
+> Triển khai thủ công lên Kubernetes CMC Cloud (chưa có CD, image từ Harbor 192.168.6.194): làm theo [docs/migrate-cmc-k8s.md](docs/migrate-cmc-k8s.md).
+
 1. Thay `<ORG>` bằng tên GitHub org/user: `grep -R "<ORG>" .`
 2. Thay `harbor.example.local` và `live.example.com` bằng giá trị thật.
 3. Ghim phiên bản: tìm `<PIN_VERSION>` trong `argocd/apps/platform/*` và `platform/velero/values.yaml`.
