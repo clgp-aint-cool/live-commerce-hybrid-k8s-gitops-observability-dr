@@ -6,7 +6,7 @@ Secret được mã hóa bằng khóa công khai của cluster, nên file `*.sea
 # Ví dụ: secret cho order-service ở dev
 kubectl create secret generic order-service-secret \
   -n live-commerce-dev \
-  --from-literal=DATABASE_URL='postgres://...' \
+  --from-literal=DATABASE_URL="postgres://<user>:<pass>@<PG_HOST DBaaS>:5432/<db>" \
   --dry-run=client -o yaml \
 | kubeseal --controller-name sealed-secrets-controller --controller-namespace sealed-secrets --format yaml \
 > apps/live-commerce/overlays/dev/secrets/order-service-secret.sealed.yaml
@@ -16,7 +16,7 @@ Secret registry cho Harbor (cần ở mỗi namespace ứng dụng):
 
 ```bash
 kubectl create secret docker-registry harbor-registry \
-  -n live-commerce-dev --docker-server=harbor.example.local \
+  -n live-commerce-dev --docker-server=192.168.6.194 \
   --docker-username=<robot> --docker-password=<token> --dry-run=client -o yaml \
 | kubeseal --controller-name sealed-secrets-controller --controller-namespace sealed-secrets --format yaml \
 > apps/live-commerce/overlays/dev/secrets/harbor-registry.sealed.yaml

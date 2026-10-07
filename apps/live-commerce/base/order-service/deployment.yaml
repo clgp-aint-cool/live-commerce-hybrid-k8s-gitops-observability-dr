@@ -20,7 +20,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: order-service
-          image: harbor.example.local/live-commerce/order-service:latest   # tag thật do CI ghi đè trong overlay (images:)
+          image: 192.168.6.194/live-commerce/order-service:latest   # tag thật do CI ghi đè trong overlay (images:)
           ports:
             - name: http
               containerPort: 3003
@@ -29,10 +29,9 @@ spec:
                 name: order-service-config
             - secretRef:
                 name: order-service-secret
-                optional: true
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10

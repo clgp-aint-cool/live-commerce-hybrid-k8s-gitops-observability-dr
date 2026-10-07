@@ -5,3 +5,5 @@ metadata:
 data:
   PORT: "3004"
   CHAT_SERVICE_URL: "http://chat-service.live-commerce.svc.cluster.local"
+  LIVE_MANAGER_URL: "http://live-manager.live-commerce.svc.cluster.local"
+  CHAT_ROOM: "main"

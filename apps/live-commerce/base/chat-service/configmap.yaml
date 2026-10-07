@@ -4,4 +4,3 @@ metadata:
   name: chat-service-config
 data:
   PORT: "3001"
-  REDIS_URL: "redis://<REDIS_HOST>:6379"

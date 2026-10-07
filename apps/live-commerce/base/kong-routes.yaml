@@ -1,5 +1,6 @@
-# Định tuyến của Kong (ingress class kong) tới các service cùng namespace.
-# TODO: kiểm tra cách bật proxy WebSocket cho /ws theo tài liệu Kong Ingress Controller.
+# Định tuyến của Kong (ingress class kong) tới các service cùng namespace. Giống deploy/kong/kong.yml
+# của repo app (strip-path=false). KHÔNG route /internal của live-manager, product-service, chat-service.
+# WebSocket /ws: Kong tự proxy Upgrade; timeout 1h đặt bằng annotation trên Service chat-service.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -19,11 +20,39 @@ spec:
                 name: product-service
                 port:
                   number: 80
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
           - path: /api/orders
             pathType: Prefix
             backend:
               service:
                 name: order-service
+                port:
+                  number: 80
+          - path: /api/sellers
+            pathType: Prefix
+            backend:
+              service:
+                name: live-manager
+                port:
+                  number: 80
+          - path: /api/sessions
+            pathType: Prefix
+            backend:
+              service:
+                name: live-manager
+                port:
+                  number: 80
+          - path: /api/lives
+            pathType: Prefix
+            backend:
+              service:
+                name: live-manager
                 port:
                   number: 80
           - path: /ws

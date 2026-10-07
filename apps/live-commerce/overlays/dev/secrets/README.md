@@ -4,6 +4,9 @@ Không commit secret thường. Tạo SealedSecret rồi lưu file `*.sealed.yam
 
 Secret cần có (live-commerce-dev):
 - `harbor-registry` (docker-registry)
-- `chat-service-secret`, `product-service-secret`, `order-service-secret` (DATABASE_URL, REDIS_PASSWORD...)
+- `product-service-secret`, `auth-service-secret`, `order-service-secret`, `chat-service-secret`, `live-manager-secret`
+  (`DATABASE_URL`/`REDIS_URL` trỏ tới DBaaS PostgreSQL/Redis của CMC Cloud, cùng các token; bảng đầy đủ ở `docs/migrate-cmc-k8s.md` mục 7.1)
+
+Cách nhanh không cần SealedSecret: `scripts/deploy.sh` tạo Secret thường thẳng vào cluster.
 
 Chi tiết cách tạo: xem `docs/secrets.md` ở thư mục gốc repo.

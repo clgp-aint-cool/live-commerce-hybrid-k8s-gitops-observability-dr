@@ -4,6 +4,6 @@ Không commit secret thường. Tạo SealedSecret rồi lưu file `*.sealed.yam
 
 Secret cần có (moderation-dev):
 - `harbor-registry`
-- `moderation-service-secret` (WEBHOOK_SHARED_SECRET)
+- `moderation-service-secret` (`DATABASE_URL` tới DBaaS, `WEBHOOK_SHARED_SECRET`, `INTERNAL_API_TOKEN`)
 
 Chi tiết cách tạo: xem `docs/secrets.md` ở thư mục gốc repo.

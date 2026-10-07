@@ -3,20 +3,20 @@ kind: Kustomization
 namespace: live-commerce
 resources:
   - ../../base
-  # - secrets/        # bỏ chú thích khi đã có SealedSecret (xem secrets/README.md)
+  # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện Secret thường do scripts/deploy.sh tạo.
 images:
-  - name: harbor.example.local/live-commerce/chat-service
-    newName: harbor.example.local/live-commerce/chat-service
-    newTag: "0000000"   # CI/promote ghi đè
-  - name: harbor.example.local/live-commerce/product-service
-    newName: harbor.example.local/live-commerce/product-service
-    newTag: "0000000"   # CI/promote ghi đè
-  - name: harbor.example.local/live-commerce/order-service
-    newName: harbor.example.local/live-commerce/order-service
-    newTag: "0000000"   # CI/promote ghi đè
-  - name: harbor.example.local/live-commerce/web
-    newName: harbor.example.local/live-commerce/web
-    newTag: "0000000"   # CI/promote ghi đè
+  - name: 192.168.6.194/live-commerce/chat-service
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+  - name: 192.168.6.194/live-commerce/product-service
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+  - name: 192.168.6.194/live-commerce/order-service
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+  - name: 192.168.6.194/live-commerce/auth-service
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+  - name: 192.168.6.194/live-commerce/live-manager
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+  - name: 192.168.6.194/live-commerce/web
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
 patches:
   - target:
       kind: Ingress
@@ -25,3 +25,10 @@ patches:
       - op: replace
         path: /spec/rules/0/host
         value: live.example.com
+  - target:
+      kind: ConfigMap
+      name: order-service-config
+    patch: |-
+      - op: replace
+        path: /data/ALLOW_GUEST_ORDERS
+        value: "false"

@@ -4,4 +4,5 @@ metadata:
   name: order-service-config
 data:
   PORT: "3003"
-  REDIS_URL: "redis://<REDIS_HOST>:6379"
+  # true: khách chưa đăng nhập vẫn đặt được. Prod đặt "false".
+  ALLOW_GUEST_ORDERS: "true"

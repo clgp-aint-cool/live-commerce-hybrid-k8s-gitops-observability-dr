@@ -4,5 +4,7 @@ resources:
   - chat-service
   - product-service
   - order-service
+  - auth-service
+  - live-manager
   - web
   - kong-routes.yaml

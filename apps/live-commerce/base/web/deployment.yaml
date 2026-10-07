@@ -20,7 +20,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: web
-          image: harbor.example.local/live-commerce/web:latest   # tag thật do CI ghi đè trong overlay (images:)
+          image: 192.168.6.194/live-commerce/web:latest   # tag thật do CI ghi đè trong overlay (images:)
           ports:
             - name: http
               containerPort: 80

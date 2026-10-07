@@ -3,11 +3,10 @@ kind: Kustomization
 namespace: moderation
 resources:
   - ../../base
-  # - secrets/        # harbor-registry, moderation-service-secret (WEBHOOK_SHARED_SECRET)
+  # - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
 images:
-  - name: harbor.example.local/live-commerce/moderation-service
-    newName: harbor.example.local/live-commerce/moderation-service
-    newTag: "0000000"   # CI/promote ghi đè
+  - name: 192.168.6.194/live-commerce/moderation-service
+    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
 patches:
   - target:
       kind: Service

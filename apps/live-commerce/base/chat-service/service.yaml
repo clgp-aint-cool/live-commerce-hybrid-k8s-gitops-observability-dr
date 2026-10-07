@@ -2,6 +2,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: chat-service
+  annotations:
+    konghq.com/read-timeout: "3600000"
+    konghq.com/write-timeout: "3600000"
   labels:
     app.kubernetes.io/name: chat-service
 spec:

@@ -20,7 +20,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: moderation-service
-          image: harbor.example.local/live-commerce/moderation-service:latest   # tag thật do CI ghi đè trong overlay (images:)
+          image: 192.168.6.194/live-commerce/moderation-service:latest   # tag thật do CI ghi đè trong overlay (images:)
           ports:
             - name: http
               containerPort: 3004
@@ -29,10 +29,9 @@ spec:
                 name: moderation-service-config
             - secretRef:
                 name: moderation-service-secret
-                optional: true
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10

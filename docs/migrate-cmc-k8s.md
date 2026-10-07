@@ -24,24 +24,24 @@ product-svc auth-svc   order-svc     live-manager ──► AWS IVS        chat-
    │           │            │              │   (IVS_MODE=aws|mock)        │
    └───────────┴────────────┴──────────────┴──────────────┬───────────────┘
                                                           ▼
-                                 namespace data: postgres (StatefulSet) + redis (StatefulSet)
+                     CMC Cloud DBaaS (ngoài cluster, private endpoint): PostgreSQL + Redis
 
 moderation-dev: moderation-service ── NodePort 30184 (webhook từ AWS qua VPN, làm sau)
-                                    └─► chat-service, live-manager (/internal), postgres
+                                    └─► chat-service, live-manager (/internal), PostgreSQL DBaaS
 
 Mọi node kéo image từ Harbor 192.168.6.194/live-commerce/<service>:<TAG> (imagePullSecret harbor-registry)
 ```
 
-| Thành phần | Image | Cổng container | Namespace |
-|---|---|---|---|
-| product-service | `192.168.6.194/live-commerce/product-service` | 3002 | live-commerce-dev |
-| auth-service | `…/auth-service` | 3006 | live-commerce-dev |
-| order-service | `…/order-service` | 3003 | live-commerce-dev |
-| chat-service | `…/chat-service` | 3001 | live-commerce-dev |
-| live-manager | `…/live-manager` | 3005 | live-commerce-dev |
-| web (nginx) | `…/web` | 80 | live-commerce-dev |
-| moderation-service | `…/moderation-service` | 3004 | moderation-dev |
-| PostgreSQL 16, Redis 7 | `postgres:16-alpine`, `redis:7-alpine` (Docker Hub) | 5432, 6379 | data |
+| Thành phần             | Image                                               | Cổng container | Namespace         |
+| ---------------------- | --------------------------------------------------- | -------------- | ----------------- |
+| product-service        | `192.168.6.194/live-commerce/product-service`       | 3002           | live-commerce-dev |
+| auth-service           | `…/auth-service`                                    | 3006           | live-commerce-dev |
+| order-service          | `…/order-service`                                   | 3003           | live-commerce-dev |
+| chat-service           | `…/chat-service`                                    | 3001           | live-commerce-dev |
+| live-manager           | `…/live-manager`                                    | 3005           | live-commerce-dev |
+| web (nginx)            | `…/web`                                             | 80             | live-commerce-dev |
+| moderation-service     | `…/moderation-service`                              | 3004           | moderation-dev    |
+| PostgreSQL, Redis      | DBaaS CMC Cloud (không chạy trong cluster)          | 5432, 6379     | —                 |
 
 Mọi Service K8s của ứng dụng mở **cổng 80** → `targetPort: http`, nên URL nội bộ không cần số cổng (`http://product-service`).
 
@@ -69,11 +69,7 @@ Ghi lại:
   ```bash
   kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.nodeInfo.architecture}{"\t"}{.status.nodeInfo.containerRuntimeVersion}{"\n"}{end}'
   ```
-- **StorageClass** (cần cho PostgreSQL và Redis):
-  ```bash
-  kubectl get storageclass
-  ```
-  Nếu không có class nào gắn `(default)`, ghi tên class sẽ dùng để điền vào mục 5.
+- **Dải IP node và VPC** của cluster: cần để allow-list trên DBaaS PostgreSQL/Redis (mục 5). Cluster không cần StorageClass vì không chạy DB.
 - **metrics-server** (cần cho HPA). Nếu lệnh dưới báo lỗi thì HPA hiện `<unknown>`; app vẫn chạy, chỉ không tự scale.
   ```bash
   kubectl top nodes
@@ -100,9 +96,10 @@ Harbor UI → project **`live-commerce`** phải có đủ **7 repository**: `pr
 - Biến `HARBOR_REGISTRY` của repo app trên GitHub phải là `192.168.6.194` (không có `https://`). Tên image và manifest dựa vào chuỗi này.
 
 > **Job `update-manifests` trong `build-and-deploy.yml`** là phần CD: nó commit tag mới vào repo infra. Khi chưa cấu hình `INFRA_REPO`/`INFRA_REPO_TOKEN`, job này sẽ đỏ. Tạm tắt nó bằng cách thêm điều kiện vào job:
+>
 > ```yaml
->   update-manifests:
->     if: ${{ vars.INFRA_REPO != '' }}
+> update-manifests:
+>   if: ${{ vars.INFRA_REPO != '' }}
 > ```
 
 ### 2.2 Robot account chỉ có quyền pull
@@ -173,7 +170,6 @@ sudo crictl pull --creds 'robot$live-commerce+k8s-pull:<ROBOT_SECRET>' 192.168.6
 ```bash
 kubectl create namespace live-commerce-dev
 kubectl create namespace moderation-dev
-kubectl create namespace data
 ```
 
 ---
@@ -225,182 +221,37 @@ Kiểm tra security group cho phép máy của bạn truy cập `<NODE_IP>:32080
 
 ---
 
-## 5. Tầng dữ liệu: PostgreSQL và Redis (namespace `data`)
+## 5. Tầng dữ liệu: PostgreSQL và Redis DBaaS của CMC Cloud
 
-Một PostgreSQL dùng chung cho mọi service (mỗi service tự tạo bảng khi khởi động; product-service tự seed 3 sản phẩm), và một Redis cho tồn kho trong phiên, chat pub/sub và trạng thái mock IVS. Nếu CMC Cloud có dịch vụ DB/Redis managed thì có thể dùng thay. Khi đó bỏ mục này và chỉ đổi `DATABASE_URL`/`REDIS_URL` ở mục 7.
+Không tự dựng container DB trong cluster. Dữ liệu cá nhân và giao dịch nằm trên **DBaaS của CMC Cloud (HCM-1)**, cluster chỉ giữ ứng dụng không trạng thái. Repo infra **không có** manifest cho DB; cluster chỉ cần biết endpoint qua `DATABASE_URL`/`REDIS_URL` trong Secret (mục 7).
 
-Tạo các file sau trong repo infra:
+Mỗi service tự tạo bảng khi khởi động (migration có advisory lock, nhiều replica không chạy chồng). product-service tự seed 3 sản phẩm. Vì vậy chỉ cần tạo **database rỗng** và user.
 
-**`apps/data/kustomization.yaml`**
+### 5.1 Tạo instance trên CMC Cloud Console
 
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: data
-resources:
-  - postgres.yaml
-  - redis.yaml
-  - secrets/
+| Hạng mục | PostgreSQL | Redis |
+| --- | --- | --- |
+| Phiên bản | 14 trở lên (đã thử với 16) | 6/7, chế độ **standalone hoặc primary–replica** |
+| Mạng | Cùng VPC/subnet với cluster, dùng **private endpoint** | Như PostgreSQL |
+| Truy cập | Allow-list dải IP **node** của cluster (pod ra ngoài qua SNAT IP node) | Như PostgreSQL |
+| Database / user | DB `livecommerce` (prod), `livecommerce_dev` (dev); user riêng cho từng môi trường, quyền owner trên DB đó | Bật mật khẩu (AUTH) |
+| Sao lưu | Bật backup tự động + PITR (thay cho PVC/Velero của DB) | Bật persistence nếu có (tồn kho phiên live) |
+
+Lưu ý tương thích với code:
+
+- **Redis không dùng cluster mode.** Code dùng `new Redis(url)` (ioredis một node), gặp endpoint cluster sẽ lỗi `MOVED`.
+- **TLS PostgreSQL** (`PG_SSLMODE` trong file env, mục 7.2): để trống nếu DBaaS không bật SSL. Dùng `no-verify` nếu bắt buộc SSL mà chứng chỉ do CA riêng của CMC ký. Chỉ dùng `verify-full` khi chứng chỉ được CA công khai ký. Driver `pg` hiện tại coi `require` như `verify-full`.
+- **TLS Redis** (`REDIS_TLS=1` → `rediss://`): ioredis luôn kiểm tra chứng chỉ, nên chỉ bật khi chứng chỉ được CA công khai ký.
+- Mật khẩu có ký tự đặc biệt không sao: `scripts/deploy.sh` tự mã hóa khi ghép URL.
+
+### 5.2 Kiểm tra từ máy làm việc (qua VPN)
+
+```bash
+nc -vz <PG_HOST> 5432
+nc -vz <REDIS_HOST> 6379
 ```
 
-**`apps/data/postgres.yaml`**
-
-```yaml
-# PostgreSQL một replica cho dev. Service headless: postgres.data.svc.cluster.local trỏ thẳng vào pod.
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  labels:
-    app.kubernetes.io/name: postgres
-spec:
-  clusterIP: None
-  selector:
-    app.kubernetes.io/name: postgres
-  ports:
-    - name: pg
-      port: 5432
-      targetPort: pg
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: postgres
-  labels:
-    app.kubernetes.io/name: postgres
-spec:
-  serviceName: postgres
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: postgres
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: postgres
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:16-alpine
-          ports:
-            - name: pg
-              containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: postgres-secret        # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-          env:
-            - name: PGDATA                   # thư mục con: gốc volume có lost+found làm initdb lỗi
-              value: /var/lib/postgresql/data/pgdata
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
-            periodSeconds: 10
-          livenessProbe:
-            exec:
-              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
-            initialDelaySeconds: 30
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql/data
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        # storageClassName: <tên class>   # bỏ chú thích nếu cluster không có StorageClass mặc định
-        resources:
-          requests:
-            storage: 10Gi
-```
-
-**`apps/data/redis.yaml`**
-
-```yaml
-# Redis một replica, có mật khẩu và AOF (giữ tồn kho phiên live khi pod khởi động lại).
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis
-  labels:
-    app.kubernetes.io/name: redis
-spec:
-  clusterIP: None
-  selector:
-    app.kubernetes.io/name: redis
-  ports:
-    - name: redis
-      port: 6379
-      targetPort: redis
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: redis
-  labels:
-    app.kubernetes.io/name: redis
-spec:
-  serviceName: redis
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: redis
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: redis
-    spec:
-      containers:
-        - name: redis
-          image: redis:7-alpine
-          args: ["--requirepass", "$(REDIS_PASSWORD)", "--appendonly", "yes"]
-          env:
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: redis-secret
-                  key: REDIS_PASSWORD
-          ports:
-            - name: redis
-              containerPort: 6379
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
-            periodSeconds: 10
-          livenessProbe:
-            exec:
-              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
-            initialDelaySeconds: 15
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          volumeMounts:
-            - name: data
-              mountPath: /data
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        # storageClassName: <tên class>
-        resources:
-          requests:
-            storage: 2Gi
-```
-
-Thư mục `apps/data/secrets/` sẽ được tạo ở mục 7.
+Kết nối từ **trong cluster** được `scripts/deploy.sh` kiểm tra tự động (một pod tạm mở TCP tới hai endpoint) trước khi apply ứng dụng.
 
 ---
 
@@ -464,7 +315,7 @@ spec:
         - name: harbor-registry
       containers:
         - name: auth-service
-          image: 192.168.6.194/live-commerce/auth-service:latest   # tag thật đặt trong overlay (images:)
+          image: 192.168.6.194/live-commerce/auth-service:latest # tag thật đặt trong overlay (images:)
           ports:
             - name: http
               containerPort: 3006
@@ -472,7 +323,7 @@ spec:
             - configMapRef:
                 name: auth-service-config
             - secretRef:
-                name: auth-service-secret        # DATABASE_URL, JWT_SECRET
+                name: auth-service-secret # DATABASE_URL, JWT_SECRET
           readinessProbe:
             httpGet:
               path: /readyz
@@ -545,16 +396,16 @@ metadata:
   name: live-manager
   # labels app.kubernetes.io/name: live-manager (cả selector và template)
 ...
-        - name: live-manager
-          image: 192.168.6.194/live-commerce/live-manager:latest
-          ports:
-            - name: http
-              containerPort: 3005
-          envFrom:
-            - configMapRef:
-                name: live-manager-config
-            - secretRef:
-                name: live-manager-secret   # DATABASE_URL, REDIS_URL, ADMIN_TOKEN, INTERNAL_API_TOKEN, [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+- name: live-manager
+  image: 192.168.6.194/live-commerce/live-manager:latest
+  ports:
+    - name: http
+      containerPort: 3005
+  envFrom:
+    - configMapRef:
+        name: live-manager-config
+    - secretRef:
+        name: live-manager-secret # DATABASE_URL, REDIS_URL, ADMIN_TOKEN, INTERNAL_API_TOKEN, [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
 ```
 
 **`service.yaml`**: giống auth-service, đổi tên và selector thành `live-manager`.
@@ -567,8 +418,8 @@ Thông tin nhạy cảm (`REDIS_URL` có mật khẩu, `DATABASE_URL`) chuyển 
 - `apps/live-commerce/base/product-service/configmap.yaml` (còn `PORT: "3002"`; product-service không dùng Redis)
 - `apps/live-commerce/base/order-service/configmap.yaml`: còn `PORT: "3003"` và thêm:
   ```yaml
-    # true: khách chưa đăng nhập vẫn đặt được. Prod đặt "false".
-    ALLOW_GUEST_ORDERS: "true"
+  # true: khách chưa đăng nhập vẫn đặt được. Prod đặt "false".
+  ALLOW_GUEST_ORDERS: "true"
   ```
 
 `apps/moderation/base/moderation-service/configmap.yaml` thêm hai biến:
@@ -763,23 +614,21 @@ kubectl kustomize apps/live-commerce/overlays/dev | grep -E '^kind:|image:' | so
 
 ### 7.1 Danh sách secret
 
-| Secret | Namespace | Khóa |
-|---|---|---|
-| `harbor-registry` (docker-registry) | live-commerce-dev, moderation-dev | robot account Harbor |
-| `postgres-secret` | data | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
-| `redis-secret` | data | `REDIS_PASSWORD` |
-| `product-service-secret` | live-commerce-dev | `DATABASE_URL`, `INTERNAL_API_TOKEN` |
-| `auth-service-secret` | live-commerce-dev | `DATABASE_URL`, `JWT_SECRET` |
-| `order-service-secret` | live-commerce-dev | `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` |
-| `chat-service-secret` | live-commerce-dev | `REDIS_URL`, `INTERNAL_API_TOKEN` |
-| `live-manager-secret` | live-commerce-dev | `DATABASE_URL`, `REDIS_URL`, `ADMIN_TOKEN`, `INTERNAL_API_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (2 khóa AWS chỉ khi `IVS_MODE=aws`) |
-| `moderation-service-secret` | moderation-dev | `DATABASE_URL`, `WEBHOOK_SHARED_SECRET`, `INTERNAL_API_TOKEN` |
+| Secret                              | Namespace                         | Khóa                                                                                                                                               |
+| ----------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harbor-registry` (docker-registry) | live-commerce-dev, moderation-dev | robot account Harbor                                                                                                                               |
+| `product-service-secret`            | live-commerce-dev                 | `DATABASE_URL`, `INTERNAL_API_TOKEN`                                                                                                               |
+| `auth-service-secret`               | live-commerce-dev                 | `DATABASE_URL`, `JWT_SECRET`                                                                                                                       |
+| `order-service-secret`              | live-commerce-dev                 | `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`                                                                                                          |
+| `chat-service-secret`               | live-commerce-dev                 | `REDIS_URL`, `INTERNAL_API_TOKEN`                                                                                                                  |
+| `live-manager-secret`               | live-commerce-dev                 | `DATABASE_URL`, `REDIS_URL`, `ADMIN_TOKEN`, `INTERNAL_API_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (2 khóa AWS chỉ khi `IVS_MODE=aws`) |
+| `moderation-service-secret`         | moderation-dev                    | `DATABASE_URL`, `WEBHOOK_SHARED_SECRET`, `INTERNAL_API_TOKEN`                                                                                      |
 
 Ràng buộc:
 
 - `JWT_SECRET` **giống nhau** ở auth và order, dài ít nhất 32 ký tự.
 - `INTERNAL_API_TOKEN` **giống nhau** ở product, chat, live-manager, moderation.
-- Mật khẩu PostgreSQL/Redis dùng **hex** (`openssl rand -hex`) để nhúng vào URL không cần mã hóa ký tự.
+- `DATABASE_URL`/`REDIS_URL` trỏ tới **endpoint DBaaS** (mục 5), được ghép từ `PG_*`/`REDIS_*` trong file env; mật khẩu được mã hóa URL tự động.
 - Thiếu biến bắt buộc thì service dừng ngay với log `Thiếu biến môi trường …`.
 
 ### 7.2 File giá trị gốc (ngoài repo, không commit)
@@ -787,10 +636,17 @@ Ràng buộc:
 ```bash
 mkdir -p ~/lc-secrets && chmod 700 ~/lc-secrets
 cat > ~/lc-secrets/dev.env <<EOF
-POSTGRES_USER=live
-POSTGRES_DB=livecommerce
-POSTGRES_PASSWORD=$(openssl rand -hex 24)
-REDIS_PASSWORD=$(openssl rand -hex 24)
+PG_HOST=
+PG_PORT=5432
+PG_USER=
+PG_PASSWORD=
+PG_DB=livecommerce_dev
+PG_SSLMODE=
+REDIS_HOST=
+REDIS_PORT=6379
+REDIS_USER=
+REDIS_PASSWORD=
+REDIS_TLS=0
 JWT_SECRET=$(openssl rand -hex 32)
 INTERNAL_API_TOKEN=$(openssl rand -hex 32)
 ADMIN_TOKEN=$(openssl rand -hex 32)
@@ -803,8 +659,11 @@ EOF
 chmod 600 ~/lc-secrets/dev.env
 ```
 
+Không muốn tự tạo thì chạy `ENV=dev TAG=<TAG> bash scripts/deploy.sh` một lần: script sinh file mẫu có chú thích rồi dừng. Prod dùng `~/lc-secrets/prod.env`.
+
 Mở file bằng trình soạn thảo, điền:
 
+- `PG_*`, `REDIS_*`: endpoint, user, mật khẩu lấy ở trang chi tiết instance DBaaS (mục 5).
 - `HARBOR_ROBOT_USER='robot$live-commerce+k8s-pull'`. Phải dùng **nháy đơn**, vì `$` sẽ bị shell hiểu là biến.
 - `HARBOR_ROBOT_TOKEN`.
 - Hai khóa AWS: chỉ điền khi dùng `IVS_MODE=aws`, lấy từ IAM user theo `live-commerce-app/docs/iam-live-manager-policy.json`.
@@ -819,14 +678,16 @@ Lưu thành `scripts/seal-secrets.sh` (chạy ở gốc repo infra), rồi `SECR
 set -euo pipefail
 set -a; . "${SECRETS_FILE:?Đặt SECRETS_FILE=đường dẫn file env}"; set +a
 
-APP=live-commerce-dev MOD=moderation-dev DATA=data
+APP=live-commerce-dev MOD=moderation-dev
 A=apps/live-commerce/overlays/dev/secrets
 M=apps/moderation/overlays/dev/secrets
-D=apps/data/secrets
-mkdir -p "$A" "$M" "$D"
+mkdir -p "$A" "$M"
 
-DB_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres.data.svc.cluster.local:5432/${POSTGRES_DB}"
-REDIS_URL="redis://:${REDIS_PASSWORD}@redis.data.svc.cluster.local:6379"
+urlenc() { printf '%s' "$1" | perl -pe 's/([^A-Za-z0-9._~-])/sprintf("%%%02X", ord($1))/ge'; }
+DB_URL="postgres://$(urlenc "$PG_USER"):$(urlenc "$PG_PASSWORD")@${PG_HOST}:${PG_PORT}/$(urlenc "$PG_DB")"
+[ -n "${PG_SSLMODE:-}" ] && DB_URL="${DB_URL}?sslmode=${PG_SSLMODE}"
+REDIS_SCHEME=redis; [ "${REDIS_TLS:-0}" = 1 ] && REDIS_SCHEME=rediss
+REDIS_URL="${REDIS_SCHEME}://$(urlenc "${REDIS_USER:-}"):$(urlenc "$REDIS_PASSWORD")@${REDIS_HOST}:${REDIS_PORT}"
 
 # seal <namespace> <file đích> <tham số cho "kubectl create secret">
 seal() {
@@ -840,11 +701,6 @@ for pair in "$APP:$A" "$MOD:$M"; do
   seal "${pair%%:*}" "${pair#*:}/harbor-registry.sealed.yaml" docker-registry harbor-registry \
     --docker-server=192.168.6.194 --docker-username="$HARBOR_ROBOT_USER" --docker-password="$HARBOR_ROBOT_TOKEN"
 done
-
-seal "$DATA" "$D/postgres-secret.sealed.yaml" generic postgres-secret \
-  --from-literal=POSTGRES_USER="$POSTGRES_USER" --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  --from-literal=POSTGRES_DB="$POSTGRES_DB"
-seal "$DATA" "$D/redis-secret.sealed.yaml" generic redis-secret --from-literal=REDIS_PASSWORD="$REDIS_PASSWORD"
 
 seal "$APP" "$A/product-service-secret.sealed.yaml" generic product-service-secret \
   --from-literal=DATABASE_URL="$DB_URL" --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN"
@@ -868,7 +724,7 @@ seal "$MOD" "$M/moderation-service-secret.sealed.yaml" generic moderation-servic
   --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN"
 
 # kustomization liệt kê mọi file trong từng thư mục secrets/
-for dir in "$A" "$M" "$D"; do
+for dir in "$A" "$M"; do
   {
     echo "apiVersion: kustomize.config.k8s.io/v1beta1"
     echo "kind: Kustomization"
@@ -884,30 +740,33 @@ SealedSecret gắn chặt với **namespace và tên** lúc seal, nên không đ
 
 ## 8. Triển khai
 
-Theo thứ tự: dữ liệu → ứng dụng → moderation.
+### 8.1 Cách nhanh: script (Secret thường, không cần Sealed Secrets/ArgoCD)
 
 ```bash
-# 1. PostgreSQL + Redis
-kubectl apply -k apps/data
-kubectl -n data rollout status statefulset/postgres --timeout=5m
-kubectl -n data rollout status statefulset/redis --timeout=5m
-kubectl -n data get pvc            # STATUS phải là Bound
+ENV=dev TAG=<TAG> DRY_RUN=1 bash scripts/deploy.sh      # kiểm tra với API server, không đổi workload
+ENV=dev TAG=<TAG> NODE_IP=<IP worker> bash scripts/deploy.sh
+```
 
-# 2. Ứng dụng
+Script: kiểm tra cluster và IngressClass `kong` → đọc `~/lc-secrets/$ENV.env` → tạo namespace + 8 Secret → ghi tag vào overlay → thử TCP từ pod tới DBaaS → apply ứng dụng rồi moderation → chờ rollout → smoke test qua Kong. Prod: `ENV=prod`, script hỏi xác nhận trước khi chạy. Chỉ đổi Secret/ConfigMap thì thêm `RESTART=1`.
+
+### 8.2 Thủ công từng bước (đã có Secret, bằng script ở 8.1 hoặc SealedSecret ở mục 7)
+
+Thứ tự: ứng dụng → moderation. Không có bước dữ liệu vì DB là DBaaS.
+
+```bash
 kubectl apply -k apps/live-commerce/overlays/dev
-kubectl -n live-commerce-dev get sealedsecrets,secrets   # SealedSecret phải sinh ra Secret cùng tên
+kubectl -n live-commerce-dev get secrets   # đủ harbor-registry và 5 *-service-secret
 for d in product-service auth-service order-service chat-service live-manager web; do
   kubectl -n live-commerce-dev rollout status deploy/$d --timeout=5m
 done
 
-# 3. Moderation
 kubectl apply -k apps/moderation/overlays/dev
 kubectl -n moderation-dev rollout status deploy/moderation-service --timeout=5m
 ```
 
 Thứ tự khởi động trong ứng dụng không bắt buộc. Pod nào phụ thuộc service chưa sẵn sàng (ví dụ live-manager cần product/chat) có thể restart vài lần rồi tự ổn.
 
-Commit mọi thay đổi của repo infra, gồm manifest mới và `*.sealed.yaml`. **Không** commit `~/lc-secrets`. Khi bật ArgoCD sau này, nó sẽ đọc đúng những gì đang chạy.
+Commit mọi thay đổi của repo infra, gồm manifest và `*.sealed.yaml` (nếu dùng). **Không** commit `~/lc-secrets`. Khi bật ArgoCD sau này, nó sẽ đọc đúng những gì đang chạy.
 
 ---
 
@@ -941,16 +800,16 @@ curl -s -X POST -H "$H" -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: appli
 
 Danh sách kiểm tra:
 
-| # | Thao tác | Kỳ vọng |
-|---|---|---|
-| 1 | Trang chủ | Hiện giao diện, không lỗi console |
-| 2 | Đăng ký / đăng nhập (`#/login`) | Thành công, F5 vẫn còn đăng nhập (auth-service + PostgreSQL) |
-| 3 | `#/seller`, dán token người bán, thêm sản phẩm, mở phiên | Phiên xuất hiện ở trang chủ |
-| 4 | Vào phiên | Video demo chạy (mock); chat gửi/nhận được (WebSocket qua Kong `/ws`) |
-| 5 | Ghim sản phẩm từ trang người bán | Thẻ sản phẩm hiện ngay trên trang xem |
-| 6 | Mua hàng | Tồn kho giảm; `#/orders` có đơn |
-| 7 | `kubectl -n live-commerce-dev delete pod -l app.kubernetes.io/name=chat-service` | Chat tự kết nối lại |
-| 8 | `kubectl -n data delete pod postgres-0` | Sau khi pod lên lại, dữ liệu (tài khoản, đơn) vẫn còn (PVC) |
+| #   | Thao tác                                                                         | Kỳ vọng                                                               |
+| --- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1   | Trang chủ                                                                        | Hiện giao diện, không lỗi console                                     |
+| 2   | Đăng ký / đăng nhập (`#/login`)                                                  | Thành công, F5 vẫn còn đăng nhập (auth-service + PostgreSQL)          |
+| 3   | `#/seller`, dán token người bán, thêm sản phẩm, mở phiên                         | Phiên xuất hiện ở trang chủ                                           |
+| 4   | Vào phiên                                                                        | Video demo chạy (mock); chat gửi/nhận được (WebSocket qua Kong `/ws`) |
+| 5   | Ghim sản phẩm từ trang người bán                                                 | Thẻ sản phẩm hiện ngay trên trang xem                                 |
+| 6   | Mua hàng                                                                         | Tồn kho giảm; `#/orders` có đơn                                       |
+| 7   | `kubectl -n live-commerce-dev delete pod -l app.kubernetes.io/name=chat-service` | Chat tự kết nối lại                                                   |
+| 8   | `kubectl -n live-commerce-dev rollout restart deploy/auth-service`               | Sau khi pod lên lại, vẫn đăng nhập được, đơn vẫn còn (dữ liệu ở DBaaS) |
 
 Chuyển sang IVS thật: điền khóa AWS vào `dev.env`, chạy lại script seal, sửa `IVS_MODE: "aws"` (và `IVS_RECORDING_CONFIGURATION_ARN` nếu dùng) trong `live-manager/configmap.yaml`, rồi apply và restart live-manager. Người bán tạo **sau** khi đổi chế độ mới có kênh IVS thật.
 
@@ -963,7 +822,7 @@ Thiết kế trong repo: **CMC Load Balancer → HAProxy Ingress (NodePort 30080
 1. Cài HAProxy Ingress: `helm repo add haproxytech https://haproxytech.github.io/helm-charts`, rồi `helm install haproxy-ingress haproxytech/kubernetes-ingress --version <PIN_VERSION> -n haproxy-ingress --create-namespace -f platform/haproxy-ingress/values.yaml`.
 2. Tạo SealedSecret `cloudflare-cert` (loại `tls`) trong namespace `kong`, đổi host thật trong `platform/edge/ingress.yaml`, rồi `kubectl apply -k platform/edge`.
 3. Đưa Kong về ClusterIP: `helm upgrade kong kong/kong --version <PIN_VERSION> -n kong -f platform/kong/values.yaml`.
-4. CMC Load Balancer: listener 443 → các node, cổng 30443 (health check TCP). Cloudflare: bản ghi DNS trỏ về IP LB, **bật WebSockets**, SSL mode *Full (strict)*.
+4. CMC Load Balancer: listener 443 → các node, cổng 30443 (health check TCP). Cloudflare: bản ghi DNS trỏ về IP LB, **bật WebSockets**, SSL mode _Full (strict)_.
 5. Đổi `host` trong overlay dev thành tên miền thật, rồi apply lại.
 
 Cách đơn giản hơn nếu chưa cần HAProxy: trỏ LB thẳng vào NodePort của Kong (32080/32443) và cấu hình TLS ở Kong hoặc LB.
@@ -998,23 +857,25 @@ Xem trước thay đổi trước khi apply: `kubectl diff -k apps/live-commerce
 
 ## 12. Xử lý sự cố
 
-| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
-|---|---|---|
-| `ImagePullBackOff`, `x509: certificate signed by unknown authority` | Node chưa tin CA Harbor | Mục 2.3c trên **mọi** node, rồi restart containerd |
-| `x509: … doesn't contain any IP SANs` | Chứng chỉ Harbor thiếu IP SAN | Cấp lại chứng chỉ có `IP:192.168.6.194` (2.3b) |
-| `ImagePullBackOff`, `unauthorized` / `401` | Thiếu hoặc sai `harbor-registry`, robot hết hạn, sai namespace | `kubectl -n <ns> get secret harbor-registry`; seal lại. Phải có ở **cả** live-commerce-dev và moderation-dev |
-| `ImagePullBackOff`, `not found` | Sai tag, hoặc repo chưa được push | Đối chiếu tag trên Harbor UI (2.1) |
-| `ImagePullBackOff`, `i/o timeout` | Security group chặn node → 192.168.6.194:443 | Mở rule; thử `curl https://192.168.6.194/v2/` từ node |
-| `exec format error` | Image build sai kiến trúc (arm64 từ Mac) | Build `--platform linux/amd64` hoặc trên runner |
-| `CrashLoopBackOff`, log `Thiếu biến môi trường X` | Secret/ConfigMap thiếu khóa | Bảng 7.1; `kubectl -n <ns> describe pod`; seal lại rồi restart |
-| `JWT_SECRET phải dài ít nhất 32 ký tự` | JWT_SECRET ngắn | `openssl rand -hex 32` |
-| SealedSecret có nhưng không sinh Secret | Seal sai namespace/tên, hoặc seal bằng khóa của cluster khác | `kubectl -n <ns> describe sealedsecret <tên>`; seal lại trên đúng cluster |
-| Pod `Pending`, PVC `Pending` | Không có StorageClass mặc định | Điền `storageClassName` ở mục 5 |
-| Readiness fail, log `ECONNREFUSED postgres…` / `NOAUTH` | DB chưa lên, sai mật khẩu, hoặc sai tên host | `kubectl -n data get pods`; kiểm tra `DATABASE_URL`/`REDIS_URL` trỏ `*.data.svc.cluster.local` |
-| Kong trả `404 no Route matched` | Sai header Host, hoặc Ingress chưa được Kong nhận | `kubectl get ingress -A`; `kubectl -n kong logs deploy/kong-kong -c ingress-controller` |
-| Chat "Mất kết nối" / WebSocket đóng sau ~60 s | Thiếu annotation timeout, Cloudflare tắt WebSockets | Mục 6.5; bật WebSockets trên Cloudflare |
-| Trang xem: "Phiên live chưa có playback URL" | Người bán tạo khi `MOCK_PLAYBACK_URL` rỗng | Đặt biến trong ConfigMap (6.3), restart, tạo người bán mới |
-| HPA `<unknown>/70%` | Thiếu metrics-server | Cài metrics-server hoặc bỏ qua ở dev |
+| Triệu chứng                                                         | Nguyên nhân thường gặp                                         | Cách xử lý                                                                                                   |
+| ------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ImagePullBackOff`, `x509: certificate signed by unknown authority` | Node chưa tin CA Harbor                                        | Mục 2.3c trên **mọi** node, rồi restart containerd                                                           |
+| `x509: … doesn't contain any IP SANs`                               | Chứng chỉ Harbor thiếu IP SAN                                  | Cấp lại chứng chỉ có `IP:192.168.6.194` (2.3b)                                                               |
+| `ImagePullBackOff`, `unauthorized` / `401`                          | Thiếu hoặc sai `harbor-registry`, robot hết hạn, sai namespace | `kubectl -n <ns> get secret harbor-registry`; seal lại. Phải có ở **cả** live-commerce-dev và moderation-dev |
+| `ImagePullBackOff`, `not found`                                     | Sai tag, hoặc repo chưa được push                              | Đối chiếu tag trên Harbor UI (2.1)                                                                           |
+| `ImagePullBackOff`, `i/o timeout`                                   | Security group chặn node → 192.168.6.194:443                   | Mở rule; thử `curl https://192.168.6.194/v2/` từ node                                                        |
+| `exec format error`                                                 | Image build sai kiến trúc (arm64 từ Mac)                       | Build `--platform linux/amd64` hoặc trên runner                                                              |
+| `CrashLoopBackOff`, log `Thiếu biến môi trường X`                   | Secret/ConfigMap thiếu khóa                                    | Bảng 7.1; `kubectl -n <ns> describe pod`; seal lại rồi restart                                               |
+| `JWT_SECRET phải dài ít nhất 32 ký tự`                              | JWT_SECRET ngắn                                                | `openssl rand -hex 32`                                                                                       |
+| SealedSecret có nhưng không sinh Secret                             | Seal sai namespace/tên, hoặc seal bằng khóa của cluster khác   | `kubectl -n <ns> describe sealedsecret <tên>`; seal lại trên đúng cluster                                    |
+| Readiness fail, log `ETIMEDOUT` / `ECONNREFUSED` tới DBaaS          | Allow-list DBaaS chưa có IP node, sai endpoint (public thay vì private) | Mục 5.1; chạy lại `scripts/deploy.sh` để xem bước kiểm tra TCP                                        |
+| Log `password authentication failed` / `NOAUTH` / `WRONGPASS`       | Sai user/mật khẩu DBaaS                                        | Sửa `PG_*`/`REDIS_*` trong file env, chạy lại script với `RESTART=1`                                         |
+| Log `self-signed certificate` / `The server does not support SSL`   | `PG_SSLMODE` không khớp cấu hình SSL của DBaaS                 | Mục 5.1: đổi giữa trống / `no-verify` / `verify-full`                                                        |
+| Log `MOVED` / `CROSSSLOT` từ Redis                                  | Đang dùng endpoint Redis cluster mode                          | Dùng instance standalone/primary–replica                                                                     |
+| Kong trả `404 no Route matched`                                     | Sai header Host, hoặc Ingress chưa được Kong nhận              | `kubectl get ingress -A`; `kubectl -n kong logs deploy/kong-kong -c ingress-controller`                      |
+| Chat "Mất kết nối" / WebSocket đóng sau ~60 s                       | Thiếu annotation timeout, Cloudflare tắt WebSockets            | Mục 6.5; bật WebSockets trên Cloudflare                                                                      |
+| Trang xem: "Phiên live chưa có playback URL"                        | Người bán tạo khi `MOCK_PLAYBACK_URL` rỗng                     | Đặt biến trong ConfigMap (6.3), restart, tạo người bán mới                                                   |
+| HPA `<unknown>/70%`                                                 | Thiếu metrics-server                                           | Cài metrics-server hoặc bỏ qua ở dev                                                                         |
 
 Lệnh hay dùng:
 
@@ -1029,18 +890,18 @@ kubectl -n live-commerce-dev exec deploy/order-service -- wget -qO- http://127.0
 
 ## 13. Checklist tổng
 
-- [ ] kubeconfig hoạt động; ghi lại IP node, kiến trúc CPU, StorageClass
+- [ ] kubeconfig hoạt động; ghi lại IP node, kiến trúc CPU
 - [ ] Harbor có đủ 7 image; `HARBOR_REGISTRY=192.168.6.194`; tạm tắt job `update-manifests`
 - [ ] Robot account pull-only
 - [ ] Chứng chỉ Harbor có IP SAN; **mọi node** tin CA; `curl https://192.168.6.194/v2/` từ node trả 401
-- [ ] Namespace `live-commerce-dev`, `moderation-dev`, `data`
+- [ ] Namespace `live-commerce-dev`, `moderation-dev`
 - [ ] Sealed Secrets controller đã cài; khóa đã sao lưu
 - [ ] Kong đã cài, có IngressClass `kong`, NodePort 32080 mở
-- [ ] `apps/data` (PostgreSQL, Redis) chạy, PVC `Bound`
+- [ ] DBaaS PostgreSQL + Redis (không cluster mode) đã tạo; allow-list IP node; pod kết nối TCP được
 - [ ] Đã thêm `auth-service`, `live-manager`; sửa ConfigMap; route Kong đủ 8 path; annotation timeout cho chat
 - [ ] Overlay dev: tag thật, `secrets/` bật, patch `LIVE_MANAGER_URL` cho moderation
-- [ ] Đã seal đủ 9 loại secret (bảng 7.1); `~/lc-secrets` không nằm trong Git
-- [ ] `kubectl apply -k` cho data → live-commerce → moderation; mọi pod `Running`/`Ready`
+- [ ] Đủ 7 loại secret (bảng 7.1), tạo bằng `scripts/deploy.sh` hoặc seal; `~/lc-secrets` không nằm trong Git
+- [ ] `kubectl apply -k` cho live-commerce → moderation; mọi pod `Running`/`Ready`
 - [ ] Đã qua bảng kiểm tra mục 9
 - [ ] Commit thay đổi repo infra
 - [ ] (Sau) HAProxy + LB + Cloudflare/TLS; `IVS_MODE=aws`; ArgoCD
