@@ -10,11 +10,15 @@ spec:
   sources:
     - repoURL: https://haproxytech.github.io/helm-charts
       chart: kubernetes-ingress
-      targetRevision: "<PIN_VERSION>"     # ghim phiên bản chart cụ thể, không dùng '*'
+      targetRevision: "1.54.2"     # khớp scripts/install-edge.sh
       helm:
         releaseName: haproxy-ingress
         valueFiles:
           - $values/platform/haproxy-ingress/values.yaml
+        parameters:
+          # SealedSecret tls "cloudflare-origin-tls" trong namespace haproxy-ingress (xem scripts/install-edge.sh)
+          - name: controller.defaultTLSSecret.secret
+            value: cloudflare-origin-tls
     - repoURL: https://github.com/<ORG>/live-commerce-infra.git
       targetRevision: main
       ref: values

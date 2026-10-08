@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: live-commerce
 resources:
   - ../../base
-  # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện Secret thường do scripts/deploy.sh tạo.
+  # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện dùng Secret thường (docs/migrate-cmc-k8s.md mục 7.2 hoặc scripts/deploy.sh).
 images:
   - name: 192.168.6.194/live-commerce/chat-service
     newTag: "0000000"   # scripts/deploy.sh / promote ghi đè

@@ -1,0 +1,13 @@
+# Cho containerd trên MỌI node tin CA riêng của Harbor (Harbor-Local-CA) để kéo image 192.168.6.194/...
+# Cần file harbor-ca.crt (CA, KHÔNG phải chứng chỉ server) đặt cạnh file này. CA là thông tin công khai, commit được.
+#   kubectl apply -k platform/registry-trust
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: registry-trust
+resources:
+  - namespace.yaml
+  - daemonset.yaml
+configMapGenerator:
+  - name: harbor-ca
+    files:
+      - ca.crt=harbor-ca.crt

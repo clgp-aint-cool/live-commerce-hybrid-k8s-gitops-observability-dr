@@ -1,0 +1,30 @@
+# Service LoadBalancer cho HAProxy: cloud controller của CMC Cloud (CKS) tự tạo ELB,
+# đưa toàn bộ worker node vào pool và trỏ :80/:443 về pod HAProxy. Không cần tạo LB bằng tay.
+# Chart vẫn giữ Service NodePort 30080/30443 để thử nội bộ qua VPN.
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy-ingress-loadbalancer
+  namespace: haproxy-ingress
+  labels:
+    app.kubernetes.io/name: kubernetes-ingress
+    app.kubernetes.io/instance: haproxy-ingress
+  # Thêm annotation theo tài liệu CMC Cloud nếu cần (chọn LB public/internal, gói băng thông, idle timeout...).
+  annotations: {}
+spec:
+  type: LoadBalancer
+  # Cluster: node nào cũng nhận và chuyển tiếp được (an toàn với mọi kiểu health check của ELB).
+  # Đổi sang Local để giữ IP nguồn, khi đã chắc ELB health check theo healthCheckNodePort.
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/instance: haproxy-ingress
+    app.kubernetes.io/name: kubernetes-ingress
+  ports:
+    - name: http
+      port: 80
+      targetPort: http    # = 8080, cổng pod HAProxy thật sự bind (không phải 80)
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: https   # = 8443
+      protocol: TCP

@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://charts.konghq.com
       chart: kong
-      targetRevision: "<PIN_VERSION>"     # ghim phiên bản chart cụ thể, không dùng '*'
+      targetRevision: "3.4.1"      # khớp scripts/install-edge.sh
       helm:
         releaseName: kong
         valueFiles:

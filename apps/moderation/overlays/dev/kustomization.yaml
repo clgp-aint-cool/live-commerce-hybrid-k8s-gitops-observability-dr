@@ -6,7 +6,7 @@ resources:
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
 images:
   - name: 192.168.6.194/live-commerce/moderation-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
 patches:
   - target:
       kind: Service

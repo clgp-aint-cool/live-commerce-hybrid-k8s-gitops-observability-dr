@@ -1,7 +1,18 @@
-# Kong + ingress controller. Service proxy tên `kong-kong-proxy` (release `kong`, namespace `kong`).
+# Kong DB-less + ingress controller (chart kong/kong 3.4.1). Service proxy: kong-kong-proxy (release kong, ns kong).
+# Đứng sau HAProxy: chỉ nhận HTTP nội bộ, TLS kết thúc ở HAProxy. Cài/cập nhật: scripts/install-edge.sh
+replicaCount: 2
 ingressController:
   enabled: true
+  ingressClass: kong
 env:
   database: "off"
+  # Lấy IP client thật từ X-Forwarded-For do HAProxy thêm (chỉ tin dải nội bộ của cluster).
+  trusted_ips: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+  real_ip_header: X-Forwarded-For
+  real_ip_recursive: "on"
 proxy:
   type: ClusterIP
+  http:
+    enabled: true
+  tls:
+    enabled: false

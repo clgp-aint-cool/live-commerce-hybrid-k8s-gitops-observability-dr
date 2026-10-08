@@ -9,18 +9,19 @@
 #   ENV           dev (mặc định) | prod
 #   TAG           (bắt buộc) tag image chung cho 7 service trên Harbor 192.168.6.194
 #   SECRETS_FILE  file env (mặc định ~/lc-secrets/$ENV.env). Chưa có thì script sinh mẫu rồi dừng để bạn điền.
-#   NODE_IP       (tùy chọn) IP một worker node để smoke test qua Kong NodePort 32080
-#   INSTALL_KONG=1  cài Kong (NodePort 32080) bằng Helm nếu chưa có IngressClass "kong"
+#   NODE_IP       (tùy chọn) IP một worker node để smoke test (HAProxy 30443 nếu đã chạy install-edge.sh, không thì Kong 32080)
+#   INSTALL_KONG=1  cài nhanh Kong NodePort 32080 (thử nghiệm). Luồng chuẩn LB -> HAProxy -> Kong: scripts/install-edge.sh
 #   DRY_RUN=1     chỉ kiểm tra với API server (server-side dry-run). Vẫn tạo namespace nếu chưa có.
 #   RESTART=1     rollout restart sau khi apply (cần khi chỉ đổi Secret/ConfigMap)
 #   SKIP_NETCHECK=1 bỏ bước thử kết nối từ pod tới DBaaS
+#   SECRETS_ONLY=1  chỉ tạo/cập nhật Secret từ file env rồi dừng (không cần TAG, không đụng workload)
 # Chạy ở gốc repo live-commerce-infra. Tương thích bash 3.2 (macOS).
 set -euo pipefail
 
 ENV=${ENV:-dev}
 REG=192.168.6.194
 case $ENV in
-  dev)  APP_NS=live-commerce-dev MOD_NS=moderation-dev HOST=dev.live.example.com ;;
+  dev)  APP_NS=live-commerce-dev MOD_NS=moderation-dev HOST=cmc-cloud-hcm1.cloud ;;
   prod) APP_NS=live-commerce     MOD_NS=moderation     HOST=live.example.com ;;
   *) echo "ENV phải là dev hoặc prod" >&2; exit 1 ;;
 esac
@@ -36,7 +37,7 @@ urlenc() { printf '%s' "$1" | perl -pe 's/([^A-Za-z0-9._~-])/sprintf("%%%02X", o
 
 [ -f apps/live-commerce/base/kustomization.yaml ] || die "Chạy script ở gốc repo live-commerce-infra"
 command -v kubectl >/dev/null || die "Thiếu kubectl"
-: "${TAG:?Đặt TAG=<tag image trên Harbor>, ví dụ TAG=a1b2c3d4}"
+[ "${SECRETS_ONLY:-0}" = 1 ] || : "${TAG:?Đặt TAG=<tag image trên Harbor>, ví dụ TAG=a1b2c3d4}"
 
 APPLY="kubectl apply"
 [ "${DRY_RUN:-0}" = 1 ] && { APPLY="kubectl apply --dry-run=server"; warn "DRY_RUN=1: không thay đổi workload"; }
@@ -50,7 +51,7 @@ kubectl get nodes -o jsonpath='{range .items[*]}  {.metadata.name}  {.status.add
 kubectl get nodes -o jsonpath='{.items[*].status.nodeInfo.architecture}' | tr ' ' '\n' | grep -qv amd64 \
   && warn "Có node không phải amd64: image phải build đúng kiến trúc"
 
-if ! kubectl get ingressclass kong >/dev/null 2>&1; then
+if [ "${SECRETS_ONLY:-0}" != 1 ] && ! kubectl get ingressclass kong >/dev/null 2>&1; then
   if [ "${INSTALL_KONG:-0}" = 1 ]; then
     command -v helm >/dev/null || die "Thiếu helm"
     say "Cài Kong (DB-less, NodePort 32080/32443)"
@@ -59,7 +60,7 @@ if ! kubectl get ingressclass kong >/dev/null 2>&1; then
     helm upgrade --install kong kong/kong ${KONG_CHART_VERSION:+--version "$KONG_CHART_VERSION"} -n kong --create-namespace \
       -f platform/kong/values.yaml --set proxy.type=NodePort --set proxy.http.nodePort=32080 --set proxy.tls.nodePort=32443 --wait
   else
-    die "Chưa có IngressClass kong. Chạy lại với INSTALL_KONG=1 (hoặc cài theo docs/migrate-cmc-k8s.md mục 4.2)"
+    die "Chưa có IngressClass kong. Chạy scripts/install-edge.sh (LB -> HAProxy -> Kong), hoặc INSTALL_KONG=1 để thử nhanh qua NodePort 32080"
   fi
 fi
 
@@ -117,7 +118,7 @@ for ns in $APP_NS $MOD_NS; do
 done
 
 # sec <namespace> <tham số cho "kubectl create secret">; idempotent, không in giá trị
-sec() { local ns=$1; shift; kubectl create secret "$@" -n "$ns" --dry-run=client -o yaml | $APPLY -f - >/dev/null; echo "  ok  $ns/$2"; }
+sec() { local ns=$1; shift; kubectl create secret "$@" -n "$ns" --dry-run=client -o yaml | $APPLY -f - >/dev/null; echo "  ok  $ns/$2${DRY_RUN:+$( [ "$DRY_RUN" = 1 ] && echo " (dry-run, chưa tạo)")}"; }
 
 say "Secret"
 for ns in $APP_NS $MOD_NS; do
@@ -135,6 +136,11 @@ sec $APP_NS generic live-manager-secret --from-literal=DATABASE_URL="$DB_URL" --
   --from-literal=ADMIN_TOKEN="$ADMIN_TOKEN" --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN" ${aws_args[@]+"${aws_args[@]}"}
 sec $MOD_NS generic moderation-service-secret --from-literal=DATABASE_URL="$DB_URL" \
   --from-literal=WEBHOOK_SHARED_SECRET="$WEBHOOK_SHARED_SECRET" --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN"
+
+if [ "${SECRETS_ONLY:-0}" = 1 ]; then
+  say "SECRETS_ONLY xong. Pod đang chạy chỉ nhận Secret mới sau: kubectl -n $APP_NS rollout restart deploy ; kubectl -n $MOD_NS rollout restart deploy"
+  exit 0
+fi
 
 # ---------- 3. Ghi tag vào overlay ----------
 say "Tag image = $TAG"
@@ -180,16 +186,23 @@ if [ $fail = 1 ]; then
   exit 1
 fi
 
-# ---------- 6. Smoke test qua Kong ----------
+# ---------- 6. Smoke test ----------
+# Có HAProxy (scripts/install-edge.sh) thì đi qua https://<NODE_IP>:30443, không thì qua Kong NodePort 32080.
+if kubectl -n haproxy-ingress get svc haproxy-ingress-kubernetes-ingress >/dev/null 2>&1; then
+  BASE="https://$HOST:30443" RESOLVE="$HOST:30443"
+else
+  BASE="http://$HOST:32080" RESOLVE="$HOST:32080"
+fi
 if [ -n "${NODE_IP:-}" ]; then
-  say "Smoke test http://$NODE_IP:32080 (Host: $HOST)"
-  H="Host: $HOST"; K="http://$NODE_IP:32080"
-  check() { local want=$1 path=$2 got; got=$(curl -s -o /dev/null -w '%{http_code}' -H "$H" "$K$path" || echo 000)
+  say "Smoke test $BASE -> $NODE_IP"
+  check() { local want=$1 path=$2 got; got=$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$RESOLVE:$NODE_IP" "$BASE$path" || echo 000)
             [ "$got" = "$want" ] && echo "  ok   $path -> $got" || { echo "  FAIL $path -> $got (muốn $want)"; fail=1; }; }
   check 200 /
   check 200 /api/products
   check 200 /api/lives
-  check 404 /internal/channels/open-session
+  # /internal không có route riêng: rơi vào "/" (web SPA, 200 HTML) hoặc Kong 404. Lỗi khi backend trả JSON khác 404.
+  r=$(curl -sk -o /dev/null -w '%{http_code} %{content_type}' --resolve "$RESOLVE:$NODE_IP" "$BASE/internal/channels/open-session" || echo 000)
+  case "$r" in 404*|*html*) echo "  ok   /internal không tới backend ($r)" ;; *) echo "  FAIL /internal lộ ra ngoài ($r)"; fail=1 ;; esac
   [ $fail = 0 ] || exit 1
 fi
-say "Xong. Mở http://$HOST:32080 (thêm '<NODE_IP> $HOST' vào /etc/hosts)"
+say "Xong. Mở $BASE (thêm '<NODE_IP> $HOST' vào /etc/hosts)"

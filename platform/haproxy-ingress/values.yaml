@@ -1,9 +1,38 @@
-# HAProxy Kubernetes Ingress Controller (haproxytech). Kiểm tra tên khóa theo phiên bản chart đã ghim.
+# HAProxy Kubernetes Ingress Controller (chart haproxytech/kubernetes-ingress 1.54.2).
+# Luồng: Cloudflare -> CMC Load Balancer :443 -> NodePort 30443 (HAProxy kết thúc TLS) -> Kong (ClusterIP) -> service.
+# Cài/cập nhật: scripts/install-edge.sh
 controller:
+  kind: DaemonSet          # mỗi node một HAProxy: LB health check node nào cũng có backend
   ingressClass: haproxy
+  ingressClassResource:
+    name: haproxy
+    default: false
+  # Chứng chỉ mặc định cho mọi SNI. scripts/install-edge.sh đặt secret=cloudflare-origin-tls khi có file chứng chỉ;
+  # để null thì chart tự sinh chứng chỉ tự ký (chỉ để thử).
+  defaultTLSSecret:
+    enabled: true
+    secret: null
+  extraArgs:
+    - --disable-quic
+  config:
+    ssl-redirect: "true"        # HTTP -> HTTPS
+    forwarded-for: "true"       # thêm X-Forwarded-For cho Kong
+    timeout-client: "60s"
+    timeout-server: "60s"
+    timeout-tunnel: "3600s"     # WebSocket /ws của chat-service, khớp timeout 1h ở Kong
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
   service:
     type: NodePort
-    # CMC Load Balancer chuyển :443 -> NodePort này. Đổi cho khớp cấu hình LB.
+    # CMC Load Balancer chuyển :443 -> 30443 (và :80 -> 30080 nếu cần). Chỉ cho LB vào 2 cổng này (Palo Alto/SG).
     nodePorts:
       http: 30080
       https: 30443
+    enablePorts:
+      quic: false
+      stat: false     # không lộ trang thống kê/admin ra NodePort
+      admin: false

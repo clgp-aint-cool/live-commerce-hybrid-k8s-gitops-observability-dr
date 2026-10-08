@@ -10,4 +10,4 @@
 
 Giả định: dev và prod chạy chung một cluster, tách bằng namespace. Nếu dùng hai cluster riêng, đăng ký thêm cluster vào ArgoCD, đổi `destination.server` trong `argocd/apps/workloads/*` và có thể bỏ hậu tố `-dev`.
 
-Kong và ingress HAProxy đặt ở namespace `kong` dùng chung; route của từng môi trường nằm cạnh service (resource `kong-routes`). Đây là lựa chọn thiết kế, có thể đổi sang Kong riêng cho từng namespace nếu cần.
+HAProxy Ingress (namespace `haproxy-ingress`) và Kong (namespace `kong`) dùng chung cho mọi môi trường: LB → HAProxy → Ingress `edge` → Kong; route của từng môi trường nằm cạnh service (resource `kong-routes`). Đây là lựa chọn thiết kế, có thể đổi sang Kong riêng cho từng namespace nếu cần.
