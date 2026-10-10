@@ -29,6 +29,9 @@ spec:
                 name: live-manager-config
             - secretRef:
                 name: live-manager-secret   # DATABASE_URL, REDIS_URL, ADMIN_TOKEN, INTERNAL_API_TOKEN, [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            - secretRef:
+                name: object-storage   # S3_* (ảnh lên Object Storage CMC Cloud), tạo bởi scripts/deploy.sh
+                optional: true
           readinessProbe:
             httpGet:
               path: /readyz

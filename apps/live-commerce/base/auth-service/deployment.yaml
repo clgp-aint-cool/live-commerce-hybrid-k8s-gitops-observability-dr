@@ -29,6 +29,9 @@ spec:
                 name: auth-service-config
             - secretRef:
                 name: auth-service-secret   # DATABASE_URL, JWT_SECRET
+            - secretRef:
+                name: object-storage   # S3_* (ảnh lên Object Storage CMC Cloud), tạo bởi scripts/deploy.sh
+                optional: true
           readinessProbe:
             httpGet:
               path: /readyz

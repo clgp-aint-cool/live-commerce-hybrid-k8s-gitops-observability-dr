@@ -21,13 +21,15 @@ live-commerce-infra/
 │  └─ moderation/{base,overlays/{dev,prod}}      # moderation-service + webhook NodePort
 ├─ cloud/              # IaC ngoài K8s: aws/ (CDK), network/ (Palo Alto, VPN)
 ├─ scripts/promote.sh  # sao chép tag dev -> prod
-├─ docs/               # gitops-flow, environments, secrets
+├─ docs/               # argocd, gitops-flow, environments, secrets, object-storage, load-testing
 └─ .github/workflows/  # validate.yml (PR), promote.yml (thủ công)
 ```
 
 ## Bắt đầu
 
 > Triển khai thủ công lên Kubernetes CMC Cloud (chưa có CD, image từ Harbor 192.168.6.194): làm theo [docs/migrate-cmc-k8s.md](docs/migrate-cmc-k8s.md).
+>
+> Dùng ArgoCD (GitOps): xem [docs/argocd.md](docs/argocd.md), gồm giải thích từng thành phần của repo này.
 
 1. Thay `<ORG>` bằng tên GitHub org/user: `grep -R "<ORG>" .`
 2. Thay `harbor.example.local` và `live.example.com` bằng giá trị thật.

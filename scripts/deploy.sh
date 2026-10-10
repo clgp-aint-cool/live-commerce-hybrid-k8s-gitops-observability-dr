@@ -7,7 +7,9 @@
 #
 # Biến:
 #   ENV           dev (mặc định) | prod
-#   TAG           (bắt buộc) tag image chung cho 7 service trên Harbor 192.168.6.194
+#   TAG           (bắt buộc) tag image trên Harbor 192.168.6.194
+#   SERVICES      (tùy chọn) chỉ đổi tag cho các service này, các service khác giữ tag đang ghi trong overlay.
+#                 Dùng khi CI chỉ build lại vài service, ví dụ SERVICES="live-manager web". Mặc định: cả 7.
 #   SECRETS_FILE  file env (mặc định ~/lc-secrets/$ENV.env). Chưa có thì script sinh mẫu rồi dừng để bạn điền.
 #   NODE_IP       (tùy chọn) IP một worker node để smoke test (HAProxy 30443 nếu đã chạy install-edge.sh, không thì Kong 32080)
 #   INSTALL_KONG=1  cài nhanh Kong NodePort 32080 (thử nghiệm). Luồng chuẩn LB -> HAProxy -> Kong: scripts/install-edge.sh
@@ -95,6 +97,15 @@ HARBOR_ROBOT_TOKEN=
 # ---- Chỉ khi IVS_MODE=aws
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+# ---- Object Storage S3 của CMC Cloud (ảnh sản phẩm, avatar). Bỏ trống S3_BUCKET = tắt upload ảnh.
+# Xem docs/object-storage.md. S3_PUBLIC_URL bỏ trống = <S3_ENDPOINT>/<S3_BUCKET>.
+S3_ENDPOINT=
+S3_REGION=us-east-1
+S3_BUCKET=
+S3_PUBLIC_URL=
+S3_FORCE_PATH_STYLE=true
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
 ENV
   chmod 600 "$SECRETS_FILE"
   die "Đã sinh $SECRETS_FILE. Điền thông tin DBaaS (PG_*, REDIS_*) và HARBOR_ROBOT_TOKEN rồi chạy lại"
@@ -134,6 +145,16 @@ aws_args=()
 [ -n "${AWS_ACCESS_KEY_ID:-}" ] && aws_args=(--from-literal=AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" --from-literal=AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY")
 sec $APP_NS generic live-manager-secret --from-literal=DATABASE_URL="$DB_URL" --from-literal=REDIS_URL="$REDIS_URL" \
   --from-literal=ADMIN_TOKEN="$ADMIN_TOKEN" --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN" ${aws_args[@]+"${aws_args[@]}"}
+# Object Storage dùng chung cho live-manager và auth-service (envFrom optional: thiếu Secret thì upload trả 503)
+if [ -n "${S3_BUCKET:-}" ]; then
+  for v in S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY; do [ -n "${!v:-}" ] || die "Có S3_BUCKET nhưng thiếu $v trong $SECRETS_FILE"; done
+  sec $APP_NS generic object-storage --from-literal=S3_ENDPOINT="$S3_ENDPOINT" --from-literal=S3_REGION="${S3_REGION:-us-east-1}" \
+    --from-literal=S3_BUCKET="$S3_BUCKET" --from-literal=S3_PUBLIC_URL="${S3_PUBLIC_URL:-}" \
+    --from-literal=S3_FORCE_PATH_STYLE="${S3_FORCE_PATH_STYLE:-true}" \
+    --from-literal=S3_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" --from-literal=S3_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+else
+  echo "  --  $APP_NS/object-storage: chưa có S3_BUCKET, upload ảnh tắt (docs/object-storage.md)"
+fi
 sec $MOD_NS generic moderation-service-secret --from-literal=DATABASE_URL="$DB_URL" \
   --from-literal=WEBHOOK_SHARED_SECRET="$WEBHOOK_SHARED_SECRET" --from-literal=INTERNAL_API_TOKEN="$INTERNAL_API_TOKEN"
 
@@ -144,7 +165,15 @@ fi
 
 # ---------- 3. Ghi tag vào overlay ----------
 say "Tag image = $TAG"
-perl -pi -e "s/newTag: \"[^\"]*\"/newTag: \"$TAG\"/" "$APP_DIR/kustomization.yaml" "$MOD_DIR/kustomization.yaml"
+ALL_SVCS="product-service auth-service order-service chat-service live-manager web moderation-service"
+for svc in ${SERVICES:-$ALL_SVCS}; do
+  case " $ALL_SVCS " in *" $svc "*) ;; *) die "SERVICES: không có service '$svc' (hợp lệ: $ALL_SVCS)" ;; esac
+  # Sửa đúng dòng newTag nằm ngay dưới "- name: .../<svc>"
+  perl -0pi -e "s{(/live-commerce/$svc\n\s+newTag: )\"[^\"]*\"}{\$1\"$TAG\"}" "$APP_DIR/kustomization.yaml" "$MOD_DIR/kustomization.yaml"
+  echo "  $svc -> $TAG"
+done
+# Image cho pod netcheck: tag product-service đang ghi trong overlay (có thể khác $TAG khi dùng SERVICES)
+PS_TAG=$(grep -A1 '/live-commerce/product-service$' "$APP_DIR/kustomization.yaml" | sed -n 's/.*newTag: "\([^"]*\)".*/\1/p')
 
 if [ "${DRY_RUN:-0}" = 1 ]; then
   for k in $APP_DIR $MOD_DIR; do say "dry-run $k"; kubectl kustomize "$k" | $APPLY -f - ; done
@@ -160,7 +189,7 @@ for(let i=0;i<a.length;i+=2){const h=a[i],p=+a[i+1];const s=net.connect(p,h);s.s
 const done=(ok,why)=>{console.log((ok?"  ok   ":"  FAIL ")+h+":"+p+(why?" ("+why+")":""));if(!ok)bad=1;s.destroy();if(--left===0)process.exit(bad);};
 s.once("connect",()=>done(true));s.once("timeout",()=>done(false,"timeout"));s.once("error",e=>done(false,e.code));}'
   kubectl -n $APP_NS run "netcheck-$$" --rm -i --quiet --restart=Never --pod-running-timeout=2m \
-    --image=$REG/live-commerce/product-service:$TAG \
+    --image=$REG/live-commerce/product-service:$PS_TAG \
     --overrides='{"apiVersion":"v1","spec":{"imagePullSecrets":[{"name":"harbor-registry"}]}}' \
     --command -- node -e "$JS" "$PG_HOST" "$PG_PORT" "$REDIS_HOST" "$REDIS_PORT" \
     || die "Pod không tới được DBaaS: kiểm tra security group/ACL của DBaaS cho dải IP node/pod, hoặc dùng private endpoint"

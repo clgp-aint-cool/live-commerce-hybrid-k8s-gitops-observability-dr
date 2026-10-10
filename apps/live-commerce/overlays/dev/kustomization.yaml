@@ -12,11 +12,11 @@ images:
   - name: 192.168.6.194/live-commerce/order-service
     newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/auth-service
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/live-manager
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/web
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
 patches:
   - target:
       kind: Ingress

@@ -413,7 +413,7 @@ data:
   IVS_MODE: "mock"
   # Bắt buộc khi IVS_MODE=mock: trong code mặc định là rỗng (chỉ docker-compose mới có giá trị mặc định).
   MOCK_PLAYBACK_URL: "https://fcc3ddae59ed.us-west-2.playback.live-video.net/api/video/v1/us-west-2.893648527354.channel.DmumNckWFTqz.m3u8"
-  AWS_REGION: "ap-southeast-1"
+  AWS_REGION: "ap-northeast-1"
   IVS_RECORDING_CONFIGURATION_ARN: ""
 ```
 
