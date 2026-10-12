@@ -2,16 +2,17 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: moderation
 resources:
-  - ../../base
+- ../../base
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
 images:
-  - name: 192.168.6.194/live-commerce/moderation-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+- name: 192.168.6.194/live-commerce/moderation-service
+  newName: 192.168.6.194/live-commerce/moderation-service
+  newTag: 257fdce4
 patches:
-  - target:
-      kind: Service
-      name: moderation-webhook
-    patch: |-
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 30084
+- patch: |-
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 30084
+  target:
+    kind: Service
+    name: moderation-webhook

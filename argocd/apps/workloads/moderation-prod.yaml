@@ -8,13 +8,18 @@ metadata:
 spec:
   project: live-commerce
   source:
-    repoURL: https://github.com/<ORG>/live-commerce-infra.git
+    repoURL: https://github.com/clgp-aint-cool/live-commerce-infra.git
     targetRevision: main
     path: apps/moderation/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: moderation
-  # prod: KHÔNG tự sync, người có quyền bấm Sync trên ArgoCD sau khi merge PR promote
+  # prod: duyệt PR promote là cổng duy nhất, merge xong ArgoCD tự sync.
+  # selfHeal: sửa tay trên cluster bị trả về theo git. prune tắt: resource bị xóa khỏi git
+  # không tự xóa trên cluster (bật khi đã quen luồng, xóa tay hoặc Sync với Prune trên UI).
   syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true

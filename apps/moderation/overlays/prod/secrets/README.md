@@ -7,3 +7,5 @@ Secret cần có (moderation):
 - `moderation-service-secret` (`DATABASE_URL` tới DBaaS, `WEBHOOK_SHARED_SECRET`, `INTERNAL_API_TOKEN`)
 
 Chi tiết cách tạo: xem `docs/secrets.md` ở thư mục gốc repo.
+
+Hiện tại prod **dùng chung DB/Redis/S3 với dev**: `scripts/copy-secrets.sh` sao chép Secret từ `live-commerce-dev`/`moderation-dev` sang (chạy lại khi đổi secret ở dev).

@@ -10,3 +10,5 @@ Secret cần có (live-commerce):
 Cách nhanh không cần SealedSecret: `scripts/deploy.sh` tạo Secret thường thẳng vào cluster.
 
 Chi tiết cách tạo: xem `docs/secrets.md` ở thư mục gốc repo.
+
+Hiện tại prod **dùng chung DB/Redis/S3 với dev**: `scripts/copy-secrets.sh` sao chép Secret từ `live-commerce-dev`/`moderation-dev` sang (chạy lại khi đổi secret ở dev).

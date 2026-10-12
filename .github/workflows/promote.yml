@@ -10,6 +10,9 @@ on:
       to:
         description: Môi trường đích
         default: prod
+      components:
+        description: "Service cần promote, cách nhau dấu phẩy (vd: order-service,web) hoặc all"
+        default: all
 
 permissions:
   contents: write
@@ -28,12 +31,27 @@ jobs:
           chmod +x "$RUNNER_TEMP/bin/yq"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Promote
-        run: ./scripts/promote.sh "${{ inputs.from }}" "${{ inputs.to }}"
+        env:
+          # Qua env, không nhúng thẳng input vào shell (tránh injection).
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          COMPONENTS: ${{ inputs.components }}
+        run: ./scripts/promote.sh "$FROM" "$TO" "$COMPONENTS"
+      - name: PR branch
+        id: br
+        env:
+          COMPONENTS: ${{ inputs.components }}
+        # Mỗi lần chạy một nhánh riêng, để promote service khác nhau không ghi đè PR của nhau.
+        run: echo "slug=$(echo "$COMPONENTS" | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-40)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - uses: peter-evans/create-pull-request@v6
         with:
-          branch: promote/${{ inputs.from }}-to-${{ inputs.to }}
-          title: "promote: ${{ inputs.from }} -> ${{ inputs.to }}"
-          commit-message: "chore: promote images ${{ inputs.from }} -> ${{ inputs.to }}"
+          branch: promote/${{ inputs.from }}-to-${{ inputs.to }}/${{ steps.br.outputs.slug }}
+          title: "promote ${{ inputs.to }}: ${{ inputs.components }} (từ ${{ inputs.from }})"
+          commit-message: "chore: promote ${{ inputs.components }} ${{ inputs.from }} -> ${{ inputs.to }}"
+          delete-branch: true
           body: |
-            Sao chép tag image từ `${{ inputs.from }}` sang `${{ inputs.to }}`.
-            Sau khi merge, vào ArgoCD bấm Sync cho các app `*-${{ inputs.to }}`.
+            Sao chép tag image của **${{ inputs.components }}** từ `${{ inputs.from }}` sang `${{ inputs.to }}`. Xem diff để biết tag cũ → mới.
+
+            ⚠️ App `*-${{ inputs.to }}` bật auto-sync: **merge PR này = deploy production**.
+            Theo dõi: ArgoCD → `live-commerce-${{ inputs.to }}` / `moderation-${{ inputs.to }}`, Discord #alert-critical.
+            Rollback: revert PR này.

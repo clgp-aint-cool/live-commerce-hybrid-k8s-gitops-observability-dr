@@ -24,7 +24,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/rules/0/host
-        value: cmc-cloud-hcm1.cloud
+        value: dev.cmc-cloud-hcm1.cloud   # cần DNS Cloudflare: dev → cùng IP apex (proxied)
   - target:
       kind: Deployment
     patch: |-

@@ -23,8 +23,8 @@ set -euo pipefail
 ENV=${ENV:-dev}
 REG=192.168.6.194
 case $ENV in
-  dev)  APP_NS=live-commerce-dev MOD_NS=moderation-dev HOST=cmc-cloud-hcm1.cloud ;;
-  prod) APP_NS=live-commerce     MOD_NS=moderation     HOST=live.example.com ;;
+  dev)  APP_NS=live-commerce-dev MOD_NS=moderation-dev HOST=dev.cmc-cloud-hcm1.cloud ;;
+  prod) APP_NS=live-commerce     MOD_NS=moderation     HOST=cmc-cloud-hcm1.cloud ;;
   *) echo "ENV phải là dev hoặc prod" >&2; exit 1 ;;
 esac
 SECRETS_FILE=${SECRETS_FILE:-$HOME/lc-secrets/$ENV.env}

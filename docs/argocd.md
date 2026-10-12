@@ -38,7 +38,7 @@ Repo app chứa **code**. Repo infra chứa **trạng thái mong muốn của cl
 | `argocd/apps/platform/*.yaml` | Mỗi file là một Application hạ tầng (bảng A.3) | `root` tạo ra |
 | `argocd/apps/workloads/*.yaml` | 4 Application nghiệp vụ: `live-commerce-dev`, `live-commerce-prod`, `moderation-dev`, `moderation-prod` | `root` tạo ra |
 | `apps/live-commerce/base/` | Manifest gốc của 6 service: chat, product, order, auth, live-manager, web. Mỗi service có deployment, service, configmap, và hpa nếu cần. Có thêm `kong-routes.yaml` (Ingress class `kong`, định tuyến `/api/...`, `/ws` tới service, không mở `/internal`) | Overlay kế thừa |
-| `apps/live-commerce/overlays/dev/` | Phần riêng của dev: namespace `live-commerce-dev`, **tag image** (`images: newTag`), host `cmc-cloud-hcm1.cloud`, 1 replica, HPA 1–3 | App `live-commerce-dev` |
+| `apps/live-commerce/overlays/dev/` | Phần riêng của dev: namespace `live-commerce-dev`, **tag image** (`images: newTag`), host `dev.cmc-cloud-hcm1.cloud`, 1 replica, HPA 1–3 | App `live-commerce-dev` |
 | `apps/live-commerce/overlays/prod/` | Phần riêng của prod: namespace `live-commerce`, host prod, tắt guest order | App `live-commerce-prod` |
 | `apps/*/overlays/*/secrets/` | Nơi đặt file `*.sealed.yaml`. Hiện **đang tắt** (dòng `# - secrets/` trong kustomization), vì Secret đang được tạo bằng `deploy.sh` | Khi chuyển sang Sealed Secrets |
 | `apps/moderation/base`, `overlays/` | moderation-service (webhook nhận sự kiện IVS qua NodePort 30184 ở dev, 30084 ở prod) | App `moderation-dev/prod` |
@@ -74,7 +74,7 @@ ArgoCD tạo app theo annotation `argocd.argoproj.io/sync-wave`. Wave nhỏ ch�
 | 2 | `alloy` | monitoring | chart, cần ghim `<PIN_VERSION>` | Cần Loki/Prometheus có trước |
 | 3 | `edge` | kong / haproxy-ingress | `platform/edge` (kustomize) | Cần cả HAProxy và Kong |
 | 4 | `live-commerce-dev`, `moderation-dev` | live-commerce-dev, moderation-dev | overlay dev | Tự sync (prune + selfHeal) |
-| 4 | `live-commerce-prod`, `moderation-prod` | live-commerce, moderation | overlay prod | **Sync tay** sau khi merge PR promote |
+| 4 | `live-commerce-prod`, `moderation-prod` | live-commerce, moderation | overlay prod | Auto-sync khi merge PR promote (selfHeal, không prune) |
 
 Các app Helm dùng **multi-source**: nguồn 1 là chart, nguồn 2 là repo này với `ref: values`, để chart đọc `$values/platform/.../values.yaml`. Cần ArgoCD ≥ 2.6.
 
@@ -221,9 +221,9 @@ cd - && make validate && git commit -am "dev: web <tag>" && git push
 **Đổi cấu hình** (ConfigMap, replica, resource, route Kong): sửa file trong `apps/.../base` hoặc overlay, mở PR (CI `validate` chạy), rồi merge. Lưu ý: Deployment không tự restart khi chỉ ConfigMap thay đổi. Sau khi sync, bấm **Restart** trên resource Deployment trong UI, hoặc chạy `kubectl rollout restart` (restart không làm OutOfSync).
 
 **Lên prod**
-1. GitHub, tab *Actions*, chạy workflow **promote** (from `dev`, to `prod`). Workflow mở PR chép tag sang `overlays/prod`.
-2. Review (theo CODEOWNERS) rồi merge.
-3. Trên UI, mở `live-commerce-prod`, xem *Diff*, rồi bấm **Sync**. Prod không tự sync.
+1. GitHub, tab *Actions*, chạy workflow **promote** (from `dev`, to `prod`, `components` = `all` hoặc danh sách như `order-service,web`). Workflow mở PR chỉ chép tag của các service đó sang `overlays/prod`.
+2. Review (theo CODEOWNERS) rồi merge. **Merge = deploy**: app prod bật auto-sync (`selfHeal: true`, `prune: false`), duyệt PR là cổng duy nhất.
+3. Theo dõi `live-commerce-prod` trên UI và Discord #alert-critical. Vì `prune: false`, resource bị xóa khỏi Git vẫn còn trên cluster: xóa tay hoặc *Sync* với *Prune* trên UI.
 
 **Rollback**
 - Cách chuẩn: `git revert <commit>` rồi push, ArgoCD sync về bản cũ.

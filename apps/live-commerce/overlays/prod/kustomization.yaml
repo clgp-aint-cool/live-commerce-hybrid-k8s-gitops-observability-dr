@@ -2,33 +2,39 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: live-commerce
 resources:
-  - ../../base
+- ../../base
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện dùng Secret thường (docs/migrate-cmc-k8s.md mục 7.2 hoặc scripts/deploy.sh).
 images:
-  - name: 192.168.6.194/live-commerce/chat-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/product-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/order-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/auth-service
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/live-manager
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/web
-    newTag: "0000000"   # scripts/deploy.sh / promote ghi đè
+- name: 192.168.6.194/live-commerce/auth-service
+  newName: 192.168.6.194/live-commerce/auth-service
+  newTag: e9111e15
+- name: 192.168.6.194/live-commerce/chat-service
+  newName: 192.168.6.194/live-commerce/chat-service
+  newTag: 257fdce4
+- name: 192.168.6.194/live-commerce/live-manager
+  newName: 192.168.6.194/live-commerce/live-manager
+  newTag: e9111e15
+- name: 192.168.6.194/live-commerce/order-service
+  newName: 192.168.6.194/live-commerce/order-service
+  newTag: 257fdce4
+- name: 192.168.6.194/live-commerce/product-service
+  newName: 192.168.6.194/live-commerce/product-service
+  newTag: 257fdce4
+- name: 192.168.6.194/live-commerce/web
+  newName: 192.168.6.194/live-commerce/web
+  newTag: e9111e15
 patches:
-  - target:
-      kind: Ingress
-      name: kong-routes
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: live.example.com
-  - target:
-      kind: ConfigMap
-      name: order-service-config
-    patch: |-
-      - op: replace
-        path: /data/ALLOW_GUEST_ORDERS
-        value: "false"
+- patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: cmc-cloud-hcm1.cloud
+  target:
+    kind: Ingress
+    name: kong-routes
+- patch: |-
+    - op: replace
+      path: /data/ALLOW_GUEST_ORDERS
+      value: "false"
+  target:
+    kind: ConfigMap
+    name: order-service-config
