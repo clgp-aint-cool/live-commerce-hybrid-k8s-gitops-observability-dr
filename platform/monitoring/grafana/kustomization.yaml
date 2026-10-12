@@ -1,0 +1,32 @@
+# Dashboard + alert rule cho Grafana (release `grafana`, ns monitoring).
+# Sidecar của Grafana nạp ConfigMap có nhãn grafana_dashboard=1 / grafana_alert=1.
+# Contact point Discord (chứa webhook) KHÔNG nằm ở đây: là Secret riêng, xem README.md.
+#   kubectl apply -k platform/monitoring/grafana
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: lc-dashboards
+    files:
+      - dashboards/lc-overview.json
+      - dashboards/lc-workloads.json
+      - dashboards/lc-cluster.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+        app.kubernetes.io/part-of: live-commerce-observability
+      annotations:
+        grafana_folder: Live Commerce
+  - name: lc-alerting
+    files:
+      - alerting/rules.yaml
+      - alerting/templates.yaml
+      - alerting/policies.yaml
+    options:
+      labels:
+        grafana_alert: "1"
+        app.kubernetes.io/part-of: live-commerce-observability

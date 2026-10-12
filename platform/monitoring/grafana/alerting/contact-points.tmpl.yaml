@@ -1,0 +1,40 @@
+# SINH TỰ ĐỘNG bởi gen.py – sửa gen.py rồi chạy lại.
+apiVersion: 1
+contactPoints:
+- orgId: 1
+  name: discord-critical
+  receivers:
+  - uid: discord-critical
+    type: discord
+    disableResolveMessage: false
+    settings:
+      url: ${DISCORD_WEBHOOK_CRITICAL}
+      title: '{{ template "lc.discord.title" . }}'
+      message: |-
+        {{ if eq .Status "firing" }}<@&${DISCORD_ROLE_ONCALL}>
+        {{ end }}{{ template "lc.discord.message" . }}
+      use_discord_username: false
+- orgId: 1
+  name: discord-warning
+  receivers:
+  - uid: discord-warning
+    type: discord
+    disableResolveMessage: false
+    settings:
+      url: ${DISCORD_WEBHOOK_WARNING}
+      title: '{{ template "lc.discord.title" . }}'
+      message: '{{ template "lc.discord.message" . }}'
+      use_discord_username: false
+- orgId: 1
+  name: discord-trust-safety
+  receivers:
+  - uid: discord-trust-safety
+    type: discord
+    disableResolveMessage: false
+    settings:
+      url: ${DISCORD_WEBHOOK_TRUST_SAFETY}
+      title: '{{ template "lc.discord.title" . }}'
+      message: |-
+        {{ if eq .Status "firing" }}<@&${DISCORD_ROLE_TRUST_SAFETY}>
+        {{ end }}{{ template "lc.discord.message" . }}
+      use_discord_username: false

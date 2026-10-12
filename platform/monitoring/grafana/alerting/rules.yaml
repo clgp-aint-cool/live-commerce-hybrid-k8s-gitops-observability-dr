@@ -1,0 +1,1069 @@
+# SINH TỰ ĐỘNG bởi gen.py – sửa gen.py rồi chạy lại.
+apiVersion: 1
+groups:
+- orgId: 1
+  name: lc-app-availability
+  folder: Live Commerce
+  interval: 1m
+  rules:
+  - uid: lc-deploy-unavailable
+    title: Deployment thiếu replica
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~"live-commerce.*|moderation.*"}) - sum by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~"live-commerce.*|moderation.*"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.deployment }} thiếu {{ printf "%.0f" .Values.A.Value }} replica'
+      description: Deployment không đạt số replica mong muốn trong 5 phút. Kiểm tra `kubectl -n {{ .Labels.namespace }} describe deploy {{ .Labels.deployment }}` (ImagePullBackOff từ Harbor, thiếu tài nguyên
+        node, probe lỗi).
+      __dashboardUid__: lc-workloads
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#deployment-thieu-replica
+      __panelId__: '4'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-deploy-down
+    title: Service DOWN hoàn toàn (0 replica available)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: count by (namespace, deployment) ((kube_deployment_status_replicas_available{namespace=~"live-commerce.*|moderation.*"} == 0) and on (namespace, deployment) (kube_deployment_spec_replicas{namespace=~"live-commerce.*|moderation.*"}
+          > 0))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    annotations:
+      summary: 🔥 {{ .Labels.namespace }}/{{ .Labels.deployment }} không còn pod nào chạy
+      description: Toàn bộ pod của service đã mất – người dùng đang bị ảnh hưởng trực tiếp.
+      __dashboardUid__: lc-workloads
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#deployment-thieu-replica
+      __panelId__: '4'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-pod-crashloop
+    title: Pod restart liên tục
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total{namespace=~"live-commerce.*|moderation.*"}[15m]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 2
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} restart {{ printf "%.0f" .Values.A.Value }} lần/15m'
+      description: Container {{ .Labels.container }} đang crash. Xem `kubectl logs --previous` hoặc dashboard Workloads.
+      __dashboardUid__: lc-workloads
+      __panelId__: '14'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+    keep_firing_for: 10m
+  - uid: lc-pod-oom
+    title: Container bị OOMKilled
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, pod) (increase(container_oom_events_total{namespace=~"live-commerce.*|moderation.*", container!=""}[10m]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} bị OOMKill'
+      description: Container vượt memory limit (512Mi). Cân nhắc tăng limit hoặc tìm rò bộ nhớ.
+      __dashboardUid__: lc-workloads
+      __panelId__: '15'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-container-waiting
+    title: Container kẹt Waiting (ImagePullBackOff / CrashLoopBackOff …)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{namespace=~"live-commerce.*|moderation.*"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} Waiting: {{ .Labels.reason }}'
+      description: ImagePullBackOff thường do robot Harbor hết hạn hoặc CA Harbor chưa có trên node mới.
+      __dashboardUid__: lc-workloads
+      __panelId__: '16'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-hpa-maxed
+    title: HPA chạm maxReplicas
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: kube_horizontalpodautoscaler_status_current_replicas{namespace=~"live-commerce.*|moderation.*"} / kube_horizontalpodautoscaler_spec_max_replicas{namespace=~"live-commerce.*|moderation.*"}
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gte
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: HPA {{ .Labels.namespace }}/{{ .Labels.horizontalpodautoscaler }} đã ở max replica 10 phút
+      description: Không thể scale thêm khi lượng viewer/đơn tiếp tục tăng. Tăng maxReplicas hoặc thêm node trước phiên live lớn.
+      __dashboardUid__: lc-workloads
+      __panelId__: '3'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-cpu-throttle
+    title: CPU throttling cao
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=~"live-commerce.*|moderation.*", container!=""}[5m])) / sum by (namespace, pod) (rate(container_cpu_cfs_periods_total{namespace=~"live-commerce.*|moderation.*",
+          container!=""}[5m]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.25
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} bị throttle {{ humanizePercentage .Values.A.Value }}'
+      description: Pod bị giới hạn CPU, latency chat/đặt hàng sẽ tăng. Xem lại CPU limit.
+      __dashboardUid__: lc-workloads
+      __panelId__: '8'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-mem-near-limit
+    title: Memory gần chạm limit
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace, pod) (container_memory_working_set_bytes{namespace=~"live-commerce.*|moderation.*", container!=""}) / sum by (namespace, pod) (kube_pod_container_resource_limits{namespace=~"live-commerce.*|moderation.*",
+          resource="memory"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.9
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} dùng {{ humanizePercentage .Values.A.Value }} memory limit'
+      description: Sắp bị OOMKill.
+      __dashboardUid__: lc-workloads
+      __panelId__: '12'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+- orgId: 1
+  name: lc-traffic-business
+  folder: Live Commerce
+  interval: 1m
+  rules:
+  - uid: lc-kong-5xx-ratio
+    title: Tỷ lệ 5xx qua Kong cao
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: (sum by (svc) (rate({namespace="kong", container="proxy"} != "kong-ingress-controller" | regexp `^\S+ \S+ \S+ \[[^\]]+\] "(?P<method>[A-Z]+) (?P<path>[^ ?"]*)[^"]*" (?P<status>\d{3}) ` | status
+          != "" | label_format svc=`{{ if hasPrefix "/api/products" .path }}product-service{{ else if hasPrefix "/api/auth" .path }}auth-service{{ else if hasPrefix "/api/orders" .path }}order-service{{
+          else if hasPrefix "/api/sellers" .path }}live-manager{{ else if hasPrefix "/api/sessions" .path }}live-manager{{ else if hasPrefix "/api/lives" .path }}live-manager{{ else if hasPrefix "/ws" .path
+          }}chat-service{{ else if hasPrefix "/socket.io" .path }}chat-service{{ else }}web{{ end }}` | status=~"5.." [5m])) / sum by (svc) (rate({namespace="kong", container="proxy"} != "kong-ingress-controller"
+          | regexp `^\S+ \S+ \S+ \[[^\]]+\] "(?P<method>[A-Z]+) (?P<path>[^ ?"]*)[^"]*" (?P<status>\d{3}) ` | status != "" | label_format svc=`{{ if hasPrefix "/api/products" .path }}product-service{{ else
+          if hasPrefix "/api/auth" .path }}auth-service{{ else if hasPrefix "/api/orders" .path }}order-service{{ else if hasPrefix "/api/sellers" .path }}live-manager{{ else if hasPrefix "/api/sessions"
+          .path }}live-manager{{ else if hasPrefix "/api/lives" .path }}live-manager{{ else if hasPrefix "/ws" .path }}chat-service{{ else if hasPrefix "/socket.io" .path }}chat-service{{ else }}web{{ end
+          }}` [5m]))) and on (svc) (sum by (svc) (count_over_time({namespace="kong", container="proxy"} != "kong-ingress-controller" | regexp `^\S+ \S+ \S+ \[[^\]]+\] "(?P<method>[A-Z]+) (?P<path>[^ ?"]*)[^"]*"
+          (?P<status>\d{3}) ` | status != "" | label_format svc=`{{ if hasPrefix "/api/products" .path }}product-service{{ else if hasPrefix "/api/auth" .path }}auth-service{{ else if hasPrefix "/api/orders"
+          .path }}order-service{{ else if hasPrefix "/api/sellers" .path }}live-manager{{ else if hasPrefix "/api/sessions" .path }}live-manager{{ else if hasPrefix "/api/lives" .path }}live-manager{{ else
+          if hasPrefix "/ws" .path }}chat-service{{ else if hasPrefix "/socket.io" .path }}chat-service{{ else }}web{{ end }}` [5m])) > 20)
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.05
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.svc }}: {{ humanizePercentage .Values.A.Value }} request lỗi 5xx'
+      description: Hơn 5 % request tới {{ .Labels.svc }} lỗi 5xx trong 5 phút (chỉ xét khi > 20 request). Vi phạm SLO 99,9 %.
+      __dashboardUid__: lc-overview
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#kong-5xx
+      __panelId__: '12'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-kong-upstream-down
+    title: Kong không gọi được upstream (502/503/504)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum by (svc, status) (count_over_time({namespace="kong", container="proxy"} != "kong-ingress-controller" | regexp `^\S+ \S+ \S+ \[[^\]]+\] "(?P<method>[A-Z]+) (?P<path>[^ ?"]*)[^"]*" (?P<status>\d{3})
+          ` | status != "" | label_format svc=`{{ if hasPrefix "/api/products" .path }}product-service{{ else if hasPrefix "/api/auth" .path }}auth-service{{ else if hasPrefix "/api/orders" .path }}order-service{{
+          else if hasPrefix "/api/sellers" .path }}live-manager{{ else if hasPrefix "/api/sessions" .path }}live-manager{{ else if hasPrefix "/api/lives" .path }}live-manager{{ else if hasPrefix "/ws" .path
+          }}chat-service{{ else if hasPrefix "/socket.io" .path }}chat-service{{ else }}web{{ end }}` | status=~"50[234]" [5m]))
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 10
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.svc }} trả {{ .Labels.status }} – {{ printf "%.0f" .Values.A.Value }} lần/5m'
+      description: Kong không kết nối được service (pod chết, readiness fail hoặc timeout).
+      __dashboardUid__: lc-overview
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#kong-5xx
+      __panelId__: '11'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-order-write-fail
+    title: Ghi đơn hàng thất bại
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum(count_over_time({namespace=~"live-commerce.*", app="order-service"} |= "Ghi đơn thất bại" [5m]))
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: 💸 {{ printf "%.0f" .Values.A.Value }} đơn hàng ghi thất bại trong 5 phút
+      description: order-service không ghi được đơn vào PostgreSQL DBaaS – mất doanh thu trực tiếp. Kiểm tra kết nối DBaaS, pool, max_connections.
+      __dashboardUid__: lc-overview
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#order-fail
+      __panelId__: '18'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+    keep_firing_for: 5m
+  - uid: lc-inventory-rollback-fail
+    title: Hoàn tồn kho thất bại (lệch tồn kho)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum(count_over_time({namespace=~"live-commerce.*", app="order-service"} |= "Hoàn tồn kho thất bại" [10m]))
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: '⚠️ Tồn kho có thể bị lệch: {{ printf "%.0f" .Values.A.Value }} lần hoàn kho thất bại'
+      description: Sau khi ghi đơn lỗi, order-service không trả lại tồn kho trên Redis. Cần đối soát tồn kho thủ công.
+      __dashboardUid__: lc-overview
+      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#order-fail
+      __panelId__: '18'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+    keep_firing_for: 15m
+  - uid: lc-ivs-errors
+    title: Lỗi gọi AWS IVS
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum(count_over_time({namespace=~"live-commerce.*", app="live-manager"} |~ "(PutMetadata|CreateStreamKey|ListStreams) lỗi|Không xóa được kênh" [10m]))
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 3
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: live-manager gặp {{ printf "%.0f" .Values.A.Value }} lỗi AWS IVS trong 10 phút
+      description: Có thể do throttling TPS của IVS, credential hết hạn hoặc VPN/Internet ra AWS gặp sự cố. Seller có thể không phát được.
+      __dashboardUid__: lc-overview
+      __panelId__: '21'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-moderation-stop
+    title: Phiên live bị dừng do vi phạm
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: 'sum by (kind) (count_over_time({namespace=~"moderation.*", app="moderation-service"} |= "STREAM_STOPPED" | regexp `Moderation event \S+: (?P<kind>[A-Z_]+)/` [5m]))'
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: 🛑 {{ printf "%.0f" .Values.A.Value }} phiên live bị dừng do {{ .Labels.kind }}
+      description: moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.
+      __dashboardUid__: lc-overview
+      __panelId__: '22'
+    labels:
+      severity: info
+      team: trust-safety
+      product: live-commerce
+  - uid: lc-error-log-spike
+    title: Log lỗi tăng đột biến
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum by (app) (count_over_time({namespace=~"live-commerce.*|moderation.*"} |~ "(?i)\b(error|exception|fatal)\b" [5m]))
+        queryType: instant
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 50
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.app }}: {{ printf "%.0f" .Values.A.Value }} dòng log lỗi/5m'
+      description: Số log lỗi vượt 50 dòng/5 phút liên tục.
+      __dashboardUid__: lc-overview
+      __panelId__: '24'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+- orgId: 1
+  name: lc-infra
+  folder: Live Commerce
+  interval: 1m
+  rules:
+  - uid: lc-node-notready
+    title: Node NotReady
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (node) (kube_node_status_condition{condition="Ready", status!="true"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    isPaused: false
+    annotations:
+      summary: Node {{ .Labels.node }} NotReady
+      description: Pod trên node sẽ bị evict sau ~5 phút. Kiểm tra VM trên portal CMC Cloud.
+      __dashboardUid__: lc-cluster
+      __panelId__: '3'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-node-cpu
+    title: Node CPU cao
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - avg by (node_name) (rate(node_cpu_seconds_total{mode="idle", node_name=~".+"}[5m]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.85
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.node_name }} CPU {{ humanizePercentage .Values.A.Value }}'
+      description: CPU node > 85 % trong 10 phút.
+      __dashboardUid__: lc-cluster
+      __panelId__: '12'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-node-mem
+    title: Node memory cao
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - node_memory_MemAvailable_bytes{node_name=~".+"} / node_memory_MemTotal_bytes{node_name=~".+"}
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.9
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.node_name }} memory {{ humanizePercentage .Values.A.Value }}'
+      description: Memory node > 90 %, kubelet sắp evict pod.
+      __dashboardUid__: lc-cluster
+      __panelId__: '13'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-node-disk
+    title: Node đĩa / sắp đầy
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - node_filesystem_avail_bytes{mountpoint="/", node_name=~".+"} / node_filesystem_size_bytes{mountpoint="/", node_name=~".+"}
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.85
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.node_name }} đĩa / dùng {{ humanizePercentage .Values.A.Value }}'
+      description: Khi > 90 % kubelet sẽ GC image và evict pod (DiskPressure).
+      __dashboardUid__: lc-cluster
+      __panelId__: '15'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-node-disk-predict
+    title: Node đĩa / sẽ đầy trong 24h
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 21600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/", node_name=~".+"}[6h], 24 * 3600)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 30m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.node_name }} dự báo hết đĩa trong 24h'
+      description: Theo xu hướng 6h gần nhất.
+      __dashboardUid__: lc-cluster
+      __panelId__: '15'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-cluster-cpu-req
+    title: Cluster gần hết CPU để schedule
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum(kube_pod_container_resource_requests{resource="cpu", node=~".*-worker-.*"}) / sum(kube_node_status_allocatable{resource="cpu", node=~".*-worker-.*"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.85
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    isPaused: false
+    annotations:
+      summary: CPU request đã dùng {{ humanizePercentage .Values.A.Value }} allocatable của worker
+      description: HPA sẽ tạo pod Pending khi có phiên live lớn. Thêm node vào node group.
+      __dashboardUid__: lc-cluster
+      __panelId__: '5'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-target-down
+    title: Mất scrape metrics (node-exporter / kube-state-metrics / kubelet)
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (job) (up{job!="kubernetes-apiservers"} == 0)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    annotations:
+      summary: Job {{ .Labels.job }} có {{ printf "%.0f" .Values.A.Value }} target down
+      description: Prometheus CMC không scrape được – dashboard và alert khác có thể mù. Báo đội CMC nếu kéo dài.
+      __dashboardUid__: lc-cluster
+      __panelId__: '25'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-apiserver-down
+    title: API server không phản hồi
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: count(up{job="kubernetes-apiservers", instance=~".*:6443"} == 0)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    isPaused: false
+    annotations:
+      summary: '{{ printf "%.0f" .Values.A.Value }} API server down'
+      description: Control plane do CMC quản lý – mở ticket CMC.
+      __dashboardUid__: lc-cluster
+      __panelId__: '23'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce
+  - uid: lc-ksm-absent
+    title: kube-state-metrics mất dữ liệu
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: absent(kube_deployment_spec_replicas)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    annotations:
+      summary: Không còn metric kube-state-metrics
+      description: Hầu hết alert workload sẽ không hoạt động. Kiểm tra pod kube-state-metrics ở ns cmc-monitoring.
+      __dashboardUid__: lc-cluster
+      __panelId__: '25'
+    labels:
+      severity: critical
+      team: platform
+      product: live-commerce

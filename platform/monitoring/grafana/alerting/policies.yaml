@@ -1,0 +1,35 @@
+# SINH TỰ ĐỘNG bởi gen.py – sửa gen.py rồi chạy lại.
+apiVersion: 1
+policies:
+- orgId: 1
+  receiver: discord-warning
+  group_by:
+  - grafana_folder
+  - alertname
+  - namespace
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+  - receiver: discord-trust-safety
+    object_matchers:
+    - - team
+      - '='
+      - trust-safety
+    repeat_interval: 4h
+    continue: false
+  - receiver: discord-critical
+    object_matchers:
+    - - severity
+      - '='
+      - critical
+    group_wait: 10s
+    group_interval: 2m
+    repeat_interval: 30m
+    continue: false
+  - receiver: discord-warning
+    object_matchers:
+    - - severity
+      - =~
+      - warning|info
+    repeat_interval: 4h

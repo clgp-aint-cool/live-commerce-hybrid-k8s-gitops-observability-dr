@@ -1,0 +1,70 @@
+# Values cho release `grafana` (chart grafana/grafana 10.5.15, Grafana 12.3.1, ns monitoring).
+# Gồm values đang chạy trên HCM-01 (helm get values, 2026-10-12) + phần thêm cho dashboard/alert Live Commerce.
+#   helm upgrade grafana grafana/grafana -n monitoring --version 10.5.15 -f platform/monitoring/grafana/values.yaml
+# Thứ tự triển khai: xem README.md (Secret Discord phải có TRƯỚC khi bật sidecar alerts).
+
+# TODO bảo mật: đang dùng admin/admin như cài ban đầu. Chuyển sang Secret:
+#   admin: {existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password}
+adminPassword: admin
+
+nodeSelector:
+  dedicated: monitor
+tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: monitor
+
+grafana.ini:
+  server:
+    # Link "Dashboard/Panel/Silence" trong tin Discord dùng URL này.
+    # Đang truy cập qua: kubectl -n monitoring port-forward svc/grafana 3000:80. Đổi khi có domain nội bộ.
+    root_url: http://localhost:3000
+  unified_alerting:
+    enabled: true
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      # uid cố định: alert rule (alerting/rules.yaml) tham chiếu theo uid.
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        isDefault: true
+        url: http://prometheus-server.cmc-monitoring.svc.cluster.local:80
+        jsonData:
+          timeInterval: 30s     # scrape interval mặc định của Prometheus CMC
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc.cluster.local:3100
+        jsonData:
+          maxLines: 1000
+
+sidecar:
+  dashboards:
+    enabled: true
+    env:
+      SKIP_TLS_VERIFY: "true"
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL
+    # ConfigMap có annotation grafana_folder -> đưa dashboard vào folder đó.
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true
+  alerts:
+    enabled: true
+    env:
+      # Cert API server của CMC thiếu Authority Key Identifier → Python 3.14 trong sidecar từ chối (giống sidecar dashboards).
+      SKIP_TLS_VERIFY: "true"
+      # Sidecar dashboards đã chiếm cổng health 8080 trong cùng pod.
+      HEALTH_PORT: "8081"
+    label: grafana_alert
+    labelValue: "1"
+    # Chỉ đọc ở ns monitoring (Secret chứa webhook Discord cũng ở đây).
+    searchNamespace: monitoring
+    resource: both

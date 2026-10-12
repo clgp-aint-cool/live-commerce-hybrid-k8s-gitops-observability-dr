@@ -1,0 +1,1890 @@
+{
+  "uid": "lc-overview",
+  "title": "Live Commerce / 01 · Tổng quan dịch vụ",
+  "description": "Golden signals, đơn hàng, livestream – màn hình NOC.",
+  "tags": [
+    "live-commerce",
+    "noc",
+    "business"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "version": 1,
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "current": {},
+        "refresh": 1,
+        "regex": "",
+        "options": []
+      },
+      {
+        "name": "ds_loki",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
+        "hide": 0,
+        "current": {},
+        "refresh": 1,
+        "regex": "",
+        "options": []
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${ds_prom}"
+        },
+        "query": {
+          "query": "label_values(kube_deployment_spec_replicas, namespace)",
+          "refId": "namespace-var"
+        },
+        "definition": "label_values(kube_deployment_spec_replicas, namespace)",
+        "refresh": 2,
+        "regex": "/^(live-commerce-dev|moderation-dev|live-commerce|moderation)$/",
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "hide": 0,
+        "options": [],
+        "allValue": "live-commerce-dev|moderation-dev|live-commerce|moderation",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "service",
+        "label": "Service (route Kong)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${ds_prom}"
+        },
+        "query": {
+          "query": "label_values(kube_deployment_spec_replicas{namespace=~\"$namespace\"}, deployment)",
+          "refId": "service-var"
+        },
+        "definition": "label_values(kube_deployment_spec_replicas{namespace=~\"$namespace\"}, deployment)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "hide": 0,
+        "options": [],
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Live Commerce",
+      "type": "dashboards",
+      "tags": [
+        "live-commerce"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "text",
+      "title": "",
+      "options": {
+        "mode": "markdown",
+        "content": "**Live Commerce – NOC.** Traffic/lỗi/đơn hàng lấy từ **log Kong qua Loki** (app chưa có `/metrics`, Prometheus CMC không scrape Kong). Hạ tầng lấy từ Prometheus CMC (`cmc-monitoring`, retention **1 ngày**). Latency p95 chỉ có sau khi bật log format `lc_combined` cho Kong."
+      },
+      "id": 1,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "row",
+      "title": "Sức khỏe tổng quan",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Deployment sẵn sàng",
+      "description": "Tổng replica available / desired của mọi Deployment trong namespace đã chọn.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) / sum(kube_deployment_spec_replicas{namespace=~\"$namespace\"})",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Request/s (Kong)",
+      "description": "Tổng request qua Kong (không tính health-check của ingress-controller).",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` [5m]))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 2,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tỷ lệ lỗi 5xx",
+      "description": "5xx / tổng request trong 5 phút. SLO 99,9 % ⇒ ngưỡng đỏ 5 %.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "(sum(rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | status=~\"5..\" [5m])) or vector(0)) / sum(rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` [5m]))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 2,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Đơn đặt thành công (khoảng chọn)",
+      "description": "POST /api/orders trả 2xx trong khoảng thời gian đang chọn.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | method=\"POST\" | path=~\"/api/orders/?\" | status=~\"2..\" [$__range]))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Phiên live mở (khoảng chọn)",
+      "description": "Đếm log live-manager \"Seller … mở phiên …\".",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", app=\"live-manager\"} |= \"mở phiên\" [$__range]))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pod restart (1h)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])) or vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 3
+      }
+    },
+    {
+      "type": "row",
+      "title": "Traffic & lỗi qua Kong (theo service)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 9
+    },
+    {
+      "type": "timeseries",
+      "title": "Request/s theo service",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (svc) (rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" [$__auto]))",
+          "refId": "A",
+          "legendFormat": "{{svc}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Request/s theo nhóm status",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (sc) (rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" | label_format sc=`{{ substr 0 1 .status }}xx` [$__auto]))",
+          "refId": "A",
+          "legendFormat": "{{sc}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tỷ lệ 5xx theo service",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (svc) (rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" | status=~\"5..\" [$__auto])) / sum by (svc) (rate({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" [$__auto]))",
+          "refId": "A",
+          "legendFormat": "{{svc}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "min": 0,
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p95 / p99 theo service (cần log format lc_combined)",
+      "description": "Thời gian Kong xử lý request ($request_time). Trống nếu Kong vẫn dùng log format mặc định.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "quantile_over_time(0.95, {namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | regexp `rt=(?P<rt>[0-9.]+)` | unwrap rt | svc=~\"$service\" [$__auto]) by (svc)",
+          "refId": "A",
+          "legendFormat": "p95 {{svc}}",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "quantile_over_time(0.99, {namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | regexp `rt=(?P<rt>[0-9.]+)` | unwrap rt | svc=~\"$service\" [$__auto]) by (svc)",
+          "refId": "B",
+          "legendFormat": "p99 {{svc}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top endpoint lỗi (4xx/5xx) trong khoảng chọn",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "topk(15, sum by (method, path, status) (count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" | status=~\"[45]..\" [$__range])))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Số lần",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Số lần"
+            }
+          }
+        }
+      ],
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top endpoint theo lưu lượng",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "topk(15, sum by (method, path) (count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=~\"$service\" [$__range])))",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Request",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Request"
+            }
+          }
+        }
+      ],
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      }
+    },
+    {
+      "type": "row",
+      "title": "Thương mại (đơn hàng, tồn kho)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 16
+    },
+    {
+      "type": "timeseries",
+      "title": "Đơn hàng / phút theo status (POST /api/orders)",
+      "description": "2xx = đặt thành công; 409/4xx thường là hết hàng hoặc dữ liệu sai; 5xx = lỗi hệ thống.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (status) (count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | method=\"POST\" | path=~\"/api/orders/?\" [1m]))",
+          "refId": "A",
+          "legendFormat": "{{status}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lỗi nghiệp vụ đơn hàng (log order-service)",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", app=\"order-service\"} |= \"Ghi đơn thất bại\" [1m]))",
+          "refId": "A",
+          "legendFormat": "Ghi đơn thất bại",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", app=\"order-service\"} |= \"Hoàn tồn kho thất bại\" [1m]))",
+          "refId": "B",
+          "legendFormat": "Hoàn tồn kho thất bại (lệch tồn kho!)",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hoàn tồn kho thất bại (lệch tồn kho!)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      }
+    },
+    {
+      "type": "row",
+      "title": "Livestream (IVS, chat, kiểm duyệt)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 19
+    },
+    {
+      "type": "timeseries",
+      "title": "Kết nối WebSocket mới / phút (chat)",
+      "description": "Số handshake WebSocket thành công. Tăng đột biến = viewer đổ vào phiên live.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=\"chat-service\" | status=\"101\" [1m]))",
+          "refId": "A",
+          "legendFormat": "WS upgrade 101",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"kong\", container=\"proxy\"} != \"kong-ingress-controller\" | regexp `^\\S+ \\S+ \\S+ \\[[^\\]]+\\] \"(?P<method>[A-Z]+) (?P<path>[^ ?\"]*)[^\"]*\" (?P<status>\\d{3}) ` | status != \"\" | label_format svc=`{{ if hasPrefix \"/api/products\" .path }}product-service{{ else if hasPrefix \"/api/auth\" .path }}auth-service{{ else if hasPrefix \"/api/orders\" .path }}order-service{{ else if hasPrefix \"/api/sellers\" .path }}live-manager{{ else if hasPrefix \"/api/sessions\" .path }}live-manager{{ else if hasPrefix \"/api/lives\" .path }}live-manager{{ else if hasPrefix \"/ws\" .path }}chat-service{{ else if hasPrefix \"/socket.io\" .path }}chat-service{{ else }}web{{ end }}` | label_format path=`{{ regexReplaceAll \"/[0-9]+\" (regexReplaceAll \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\" .path \":id\") \"/:id\" }}` | svc=\"chat-service\" | status!=\"101\" [1m]))",
+          "refId": "B",
+          "legendFormat": "chat non-101",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 42
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Phiên live mở & lỗi AWS IVS",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", app=\"live-manager\"} |= \"mở phiên\" [5m]))",
+          "refId": "A",
+          "legendFormat": "Phiên mở (5m)",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=~\"$namespace\", app=\"live-manager\"} |~ \"(PutMetadata|CreateStreamKey|ListStreams) lỗi|Không xóa được kênh\" [5m]))",
+          "refId": "B",
+          "legendFormat": "Lỗi IVS (5m)",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lỗi IVS (5m)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 42
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Sự kiện kiểm duyệt (moderation)",
+      "description": "IMAGE_VIOLATION/STREAM_STOPPED = phiên bị dừng do vi phạm.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (kind) (count_over_time({namespace=~\"$namespace\", app=\"moderation-service\"} |= \"Moderation event\" | regexp `Moderation event \\S+: (?P<kind>[A-Z_]+/[A-Z_]+)` [5m]))",
+          "refId": "A",
+          "legendFormat": "{{kind}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 42
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "chat-service & order-service: replica so với HPA",
+      "description": "Chạm max trong giờ live = cần nâng maxReplicas hoặc node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"$namespace\"}",
+          "refId": "A",
+          "legendFormat": "current {{horizontalpodautoscaler}}",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=~\"$namespace\"}",
+          "refId": "B",
+          "legendFormat": "max {{horizontalpodautoscaler}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "max .*"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Log lỗi / phút theo service",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (app) (count_over_time({namespace=~\"$namespace\"} |~ \"(?i)\\b(error|exception|fatal)\\b\" [1m]))",
+          "refId": "A",
+          "legendFormat": "{{app}}",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "Không có request / log trong khoảng thời gian này"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      }
+    },
+    {
+      "type": "row",
+      "title": "Log lỗi gần nhất",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 25
+    },
+    {
+      "type": "logs",
+      "title": "Log ERROR/WARN của ứng dụng",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "{namespace=~\"$namespace\"} |~ \"(?i)\\b(error|warn|exception|fatal)\\b\"",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      }
+    }
+  ]
+}

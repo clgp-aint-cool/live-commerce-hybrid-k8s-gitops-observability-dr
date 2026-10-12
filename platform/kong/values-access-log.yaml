@@ -1,0 +1,11 @@
+# TÙY CHỌN: thêm latency vào access log của Kong để dashboard/alert Live Commerce tính được p95/p99.
+# Giữ nguyên phần đầu của định dạng combined + kong_request_id hiện tại, chỉ nối thêm rt= / urt= ở cuối,
+# nên các query Loki đang có vẫn đọc được.
+#   helm upgrade kong kong/kong -n kong --version 3.4.1 -f platform/kong/values.yaml -f platform/kong/values-access-log.yaml
+# Thử ở giờ thấp điểm; Kong rolling restart 2 replica.
+env:
+  nginx_http_log_format: >-
+    lc_combined '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent
+    "$http_referer" "$http_user_agent" kong_request_id: "$kong_request_id"
+    rt=$request_time urt=$upstream_response_time'
+  proxy_access_log: /dev/stdout lc_combined

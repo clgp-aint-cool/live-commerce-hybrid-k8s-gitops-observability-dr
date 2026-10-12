@@ -1,0 +1,38 @@
+# SINH TỰ ĐỘNG bởi gen.py – sửa gen.py rồi chạy lại.
+apiVersion: 1
+templates:
+- orgId: 1
+  name: lc-discord
+  template: |-
+    {{ define "lc.discord.title" -}}
+    {{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}🔴{{ else if eq .CommonLabels.severity "warning" }}🟠{{ else }}🔵{{ end }} [{{ .CommonLabels.severity | toUpper }}]{{ else }}✅ [RESOLVED]{{ end }} {{ .CommonLabels.alertname }}{{ if gt (len .Alerts.Firing) 1 }} ×{{ len .Alerts.Firing }}{{ end }}
+    {{- end }}
+
+    {{ define "lc.discord.alert" -}}
+    **{{ or .Annotations.summary .Labels.alertname }}**
+    {{ with .Annotations.description }}{{ . }}
+    {{ end -}}
+    {{ with .Labels.namespace }}• Namespace: `{{ . }}`
+    {{ end -}}
+    {{ with .Labels.deployment }}• Deployment: `{{ . }}`
+    {{ end -}}
+    {{ with .Labels.pod }}• Pod: `{{ . }}`
+    {{ end -}}
+    {{ with .Labels.svc }}• Service: `{{ . }}`
+    {{ end -}}
+    {{ with .Labels.node }}• Node: `{{ . }}`
+    {{ end -}}
+    {{ with .Labels.node_name }}• Node: `{{ . }}`
+    {{ end -}}
+    • Bắt đầu: <t:{{ .StartsAt.Unix }}:R>{{ if eq .Status "resolved" }} · Hết: <t:{{ .EndsAt.Unix }}:R>{{ end }}
+    {{ with .DashboardURL }}[📊 Dashboard]({{ . }}){{ end }}{{ with .PanelURL }} · [Panel]({{ . }}){{ end }}{{ with .Annotations.runbook_url }} · [📕 Runbook]({{ . }}){{ end }}{{ if eq .Status "firing" }} · [🔕 Silence]({{ .SilenceURL }}){{ end }}
+    {{- end }}
+
+    {{ define "lc.discord.message" -}}
+    {{ range .Alerts.Firing }}{{ template "lc.discord.alert" . }}
+
+    {{ end -}}
+    {{ range .Alerts.Resolved }}{{ template "lc.discord.alert" . }}
+
+    {{ end -}}
+    {{- end }}
