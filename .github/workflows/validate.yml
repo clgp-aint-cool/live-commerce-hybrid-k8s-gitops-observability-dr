@@ -5,7 +5,7 @@ on:
 
 jobs:
   validate:
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: imranismail/setup-kustomize@v2
@@ -15,6 +15,6 @@ jobs:
           curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz -C "$RUNNER_TEMP/bin" kubeconform
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Install yamllint
-        run: pip install --user yamllint && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        run: pipx install yamllint
       - name: Validate
         run: make validate

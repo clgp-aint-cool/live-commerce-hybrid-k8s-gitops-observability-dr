@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: moderation
 resources:
 - ../../base
-  # - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
+# - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
 images:
 - name: 192.168.6.194/live-commerce/moderation-service
   newName: 192.168.6.194/live-commerce/moderation-service
