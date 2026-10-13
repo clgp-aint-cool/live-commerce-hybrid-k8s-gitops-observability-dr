@@ -32,18 +32,7 @@ patches:
         path: /spec/replicas
         value: 1
   - target:
-      kind: HorizontalPodAutoscaler
-      name: chat-service
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 1
-      - op: replace
-        path: /spec/maxReplicas
-        value: 3
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: order-service
+      kind: HorizontalPodAutoscaler   # mọi HPA: dev chạy 1 pod, tối đa 3
     patch: |-
       - op: replace
         path: /spec/minReplicas
