@@ -14,9 +14,16 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: live-commerce-dev
+  # HPA quyết định số pod: ArgoCD bỏ qua replicas, kể cả khi selfHeal/sync.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true

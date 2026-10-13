@@ -80,7 +80,7 @@ helm upgrade --install kong kong/kong --version "$KONG_CHART_VERSION" -n $KONG_N
 say "HAProxy Ingress $HAPROXY_CHART_VERSION (NodePort 30080/30443)"
 helm upgrade --install haproxy-ingress haproxytech/kubernetes-ingress --version "$HAPROXY_CHART_VERSION" -n $HAP_NS \
   -f platform/haproxy-ingress/values.yaml ${hap_tls_args[@]+"${hap_tls_args[@]}"} \
-  --wait --timeout 5m ${HELM_DRY[@]+"${HELM_DRY[@]}"} >/dev/null
+  --wait --timeout 15m ${HELM_DRY[@]+"${HELM_DRY[@]}"} >/dev/null
 
 if [ "${DRY_RUN:-0}" = 1 ]; then
   kubectl kustomize platform/edge | $APPLY -f -
@@ -89,7 +89,7 @@ fi
 
 # Nếu secret được tạo/đổi sau khi HAProxy đã chạy thì nạp lại cho chắc
 [ ${#hap_tls_args[@]} -gt 0 ] && kubectl -n $HAP_NS rollout restart daemonset/$HAP_SVC >/dev/null
-kubectl -n $HAP_NS rollout status daemonset/$HAP_SVC --timeout=5m
+kubectl -n $HAP_NS rollout status daemonset/$HAP_SVC --timeout=15m
 
 # ---------- 4. Ingress edge + Service LoadBalancer ----------
 say "Ingress edge (haproxy -> kong-kong-proxy) + Service LoadBalancer (CMC ELB -> HAProxy)"
