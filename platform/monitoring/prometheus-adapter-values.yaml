@@ -1,3 +1,7 @@
+# prometheus-adapter (chart 5.3.0): cung cấp custom.metrics.k8s.io cho HPA theo request.
+#   helm upgrade prometheus-adapter prometheus-community/prometheus-adapter -n monitoring --version 5.3.0 -f platform/monitoring/prometheus-adapter-values.yaml
+# Nguồn số liệu: recording rule kong_service:requests:rate2m (platform/monitoring/cmc-prometheus/rules.yaml),
+# đã là request/giây của từng Service, nhãn namespace/service khớp object Kubernetes.
 prometheus:
   url: http://prometheus-server.cmc-monitoring.svc
   port: 80
@@ -6,20 +10,13 @@ prometheus:
 rules:
   default: false
   custom:
-    - seriesQuery: 'kong_nginx_requests_total{namespace!="",service!=""}'
+    # HPA: type Object, describedObject = Service <svc>, metric http_requests_per_second.
+    - seriesQuery: 'kong_service:requests:rate2m{namespace!="",service!=""}'
       resources:
         overrides:
           namespace: {resource: "namespace"}
           service: {resource: "service"}
       name:
-        matches: "^kong_nginx_requests_total"
+        matches: "^kong_service:requests:rate2m$"
         as: "http_requests_per_second"
-      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)'
-  external:
-    - seriesQuery: 'kong_nginx_requests_total{namespace!=""}'
-      resources:
-        template: "<<.Resource>>"
-      name:
-        matches: "^kong_nginx_requests_total"
-        as: "http_requests_per_second"
-      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)'
+      metricsQuery: 'sum(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)'

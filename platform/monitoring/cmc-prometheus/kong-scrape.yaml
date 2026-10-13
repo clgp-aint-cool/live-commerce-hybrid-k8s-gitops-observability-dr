@@ -1,0 +1,15 @@
+# Job scrape Kong cho Prometheus CMC (cmc-monitoring/prometheus-server). Gộp vào ConfigMap bằng scripts/patch-cmc-prometheus.sh.
+# Scrape TỪNG pod Kong (cổng "status" 8100), không qua Service: qua Service thì mỗi lần trúng một pod, counter nhảy, rate() sai.
+# Không gắn nhãn namespace/service ở đây: nhãn service lấy từ chính metric của Kong (recording rule tách ra).
+job_name: kong
+scrape_interval: 15s
+kubernetes_sd_configs:
+  - role: pod
+    namespaces:
+      names: [kong]
+relabel_configs:
+  - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+    regex: kong;status
+    action: keep
+  - source_labels: [__meta_kubernetes_pod_name]
+    target_label: pod

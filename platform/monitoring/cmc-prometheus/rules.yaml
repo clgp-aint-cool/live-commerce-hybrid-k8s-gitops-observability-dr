@@ -1,0 +1,14 @@
+# Recording rule cho HPA theo request. Ghi vào key rules.yaml của ConfigMap cmc-monitoring/prometheus-server.
+# Kong đặt tên service "<namespace>.<service>.<port>" (vd live-commerce.order-service.80 hoặc ...pnum-80):
+# tách thành nhãn namespace/service để prometheus-adapter map được sang Service Kubernetes.
+groups:
+  - name: kong-hpa
+    interval: 15s
+    rules:
+      - record: kong_service:requests:rate2m
+        expr: |
+          sum by (namespace, service) (
+            label_replace(
+              label_replace(rate(kong_http_requests_total{service!=""}[2m]),
+                "namespace", "$1", "service", "([^.]+)\\..+"),
+              "service", "$1", "service", "[^.]+\\.([^.]+)\\..+"))

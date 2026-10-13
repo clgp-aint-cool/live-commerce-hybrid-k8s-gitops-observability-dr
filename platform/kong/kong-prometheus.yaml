@@ -1,25 +1,14 @@
+# Plugin prometheus toàn cục: Kong xuất kong_http_requests_total{service="<ns>.<svc>.<port>"} ở cổng status 8100.
+# Prometheus (CMC) scrape từng pod Kong: platform/monitoring/cmc-prometheus/. HPA đọc qua prometheus-adapter.
 apiVersion: configuration.konghq.com/v1
 kind: KongClusterPlugin
 metadata:
   name: prometheus
+  annotations:
+    kubernetes.io/ingress.class: kong   # thiếu thì Kong Ingress Controller bỏ qua plugin
   labels:
     global: "true"
 plugin: prometheus
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kong-status-metrics
-  namespace: kong
-  labels:
-    app.kubernetes.io/name: kong
-spec:
-  type: ClusterIP
-  ports:
-    - name: metrics
-      port: 8100
-      targetPort: 8100
-      protocol: TCP
-  selector:
-    app.kubernetes.io/component: app
-    app.kubernetes.io/name: kong
+config:
+  status_code_metrics: true   # bật kong_http_requests_total (Kong 3.x mặc định tắt)
+  latency_metrics: true
