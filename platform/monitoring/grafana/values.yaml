@@ -15,11 +15,27 @@ tolerations:
     operator: Equal
     value: monitor
 
+# Giữ grafana.db (user, mật khẩu, dashboard/alert tạo trên UI) qua restart/upgrade.
+persistence:
+  enabled: true
+  storageClassName: highio      # Cinder, StorageClass duy nhất, không phải default
+  size: 5Gi
+  annotations:
+    helm.sh/resource-policy: keep   # helm uninstall không xóa PVC (reclaimPolicy Delete)
+# Volume RWO chỉ gắn được 1 node: tắt pod cũ trước rồi mới tạo pod mới (tránh Multi-Attach).
+deploymentStrategy:
+  type: Recreate
+
+# Team nội bộ vào qua http://<IP node bất kỳ>:30300 (chỉ trong mạng nội bộ/VPN, không qua Cloudflare).
+service:
+  type: NodePort
+  nodePort: 30300
+
 grafana.ini:
   server:
     # Link "Dashboard/Panel/Silence" trong tin Discord dùng URL này.
-    # Đang truy cập qua: kubectl -n monitoring port-forward svc/grafana 3000:80. Đổi khi có domain nội bộ.
-    root_url: http://localhost:3000
+    # IP node monitor 8vvkp; đổi nếu node bị auto-healing thay (kubectl get nodes -l dedicated=monitor -o wide).
+    root_url: http://192.168.6.150:30300
   unified_alerting:
     enabled: true
 

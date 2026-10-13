@@ -1,6 +1,25 @@
 # Giá trị tham khảo cho Helm chart argo-cd (argo-helm). Cài ArgoCD lần đầu bằng tay, xem README.md cùng thư mục.
+global:
+  nodeSelector:
+    dedicated: argocd
+  tolerations:
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: argocd
+
+# Team nội bộ vào UI qua https://<IP node bất kỳ>:30538 (chỉ trong mạng nội bộ/VPN, không qua Cloudflare).
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 31392
+    nodePortHttps: 30538
+
 configs:
   params:
+    # CHƯA áp trên HCM-01. Bật thì argocd-server chỉ phục vụ HTTP: vào bằng http://<node>:31392 và đổi url ở dưới.
     server.insecure: true        # TLS kết thúc ở ingress/Cloudflare
   cm:
     timeout.reconciliation: 180s
+    # Link trong UI/notification. IP node cd 7fj55; đổi nếu node bị auto-healing thay.
+    url: https://192.168.6.69:30538
