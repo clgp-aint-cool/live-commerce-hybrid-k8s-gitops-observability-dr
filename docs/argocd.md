@@ -88,7 +88,7 @@ Các app Helm dùng **multi-source**: nguồn 1 là chart, nguồn 2 là repo n�
 
 | Thành phần | Trong repo | Trên cluster | Đánh giá |
 |---|---|---|---|
-| ArgoCD | `argocd/install/values.yaml` | Helm release `argocd`, chart `argo-cd-10.9.6` (ArgoCD v3.5.3), cài ngày 07/10. **Không** dùng values của repo: `server.insecure` chưa bật, reconcile 120 s, `argocd-server` là NodePort 31392/30538. `argocd-initial-admin-secret` vẫn còn | Đã cài. Bỏ qua bước cài ở B.2. Muốn áp values thì `helm upgrade` (B.2) |
+| ArgoCD | `argocd/install/values.yaml` | Helm release `argocd`, chart `argo-cd-10.9.6` (ArgoCD v3.5.3), cài ngày 07/10. **Không** dùng values của repo: `server.insecure` chưa bật, reconcile 120 s, `argocd-server` là NodePort 31392/30538 (đã ghi vào values, cùng `url`). `argocd-initial-admin-secret` vẫn còn | Đã cài. Bỏ qua bước cài ở B.2. Muốn áp values thì `helm upgrade` (B.2) |
 | Application / AppProject | `root`, 12 app, project `platform` và `live-commerce` | Chưa có Application nào. Chỉ có project `default`. Chưa khai báo repo nào | Chưa bootstrap |
 | Repo infra trên GitHub | | Truy cập ẩn danh trả 404, tức repo **private** | Bắt buộc làm B.3 |
 | `sealed-secrets` | chart 2.20.0, `fullnameOverride: sealed-secrets-controller` | Release `sealed-secrets` 2.20.0, deployment `sealed-secrets-controller`. Chưa có SealedSecret nào | Khớp, ArgoCD tiếp quản được |
@@ -145,7 +145,7 @@ Cluster mới thì dùng `helm upgrade --install … --create-namespace` với c
 kubectl -n argocd rollout status deploy/argocd-server
 ```
 
-Mở UI bằng port-forward (không cần lộ ArgoCD ra Internet):
+Mở UI qua NodePort, chỉ trong mạng nội bộ/VPN (không qua Cloudflare): `https://<IP node bất kỳ>:30538`, ví dụ `https://192.168.6.69:30538` (cert tự ký, bấm bỏ qua cảnh báo). Grafana tương tự: `http://<IP node>:30300`. Ngoài mạng nội bộ thì dùng port-forward:
 
 ```bash
 kubectl -n argocd port-forward svc/argocd-server 8080:80
@@ -259,7 +259,7 @@ cd - && make validate && git commit -am "dev: web <tag>" && git push
 ### B.9 Tóm tắt lệnh
 
 ```bash
-kubectl -n argocd port-forward svc/argocd-server 8080:80      # mở UI
+# UI: https://<IP node>:30538 (ArgoCD), http://<IP node>:30300 (Grafana), chỉ trong mạng nội bộ/VPN
 ```
 
 ```bash
