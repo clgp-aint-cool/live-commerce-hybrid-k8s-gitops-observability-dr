@@ -14,12 +14,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: moderation
-  # HPA quyết định số pod: ArgoCD bỏ qua replicas, kể cả khi selfHeal/sync.
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      jsonPointers:
-        - /spec/replicas
   # prod: duyệt PR promote là cổng duy nhất, merge xong ArgoCD tự sync.
   # selfHeal: sửa tay trên cluster bị trả về theo git. prune tắt: resource bị xóa khỏi git
   # không tự xóa trên cluster (bật khi đã quen luồng, xóa tay hoặc Sync với Prune trên UI).
@@ -29,4 +23,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true

@@ -5,4 +5,3 @@ resources:
   - service.yaml
   - service-webhook.yaml
   - configmap.yaml
-  - hpa.yaml
