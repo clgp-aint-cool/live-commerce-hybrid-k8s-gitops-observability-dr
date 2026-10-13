@@ -1,0 +1,25 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: prometheus
+  labels:
+    global: "true"
+plugin: prometheus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-status-metrics
+  namespace: kong
+  labels:
+    app.kubernetes.io/name: kong
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 8100
+      targetPort: 8100
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: app
+    app.kubernetes.io/name: kong

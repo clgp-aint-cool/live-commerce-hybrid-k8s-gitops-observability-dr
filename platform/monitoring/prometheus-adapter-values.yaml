@@ -1,0 +1,25 @@
+prometheus:
+  url: http://prometheus-server.cmc-monitoring.svc
+  port: 80
+  path: ""
+
+rules:
+  default: false
+  custom:
+    - seriesQuery: 'kong_nginx_requests_total{namespace!="",service!=""}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          service: {resource: "service"}
+      name:
+        matches: "^kong_nginx_requests_total"
+        as: "http_requests_per_second"
+      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)'
+  external:
+    - seriesQuery: 'kong_nginx_requests_total{namespace!=""}'
+      resources:
+        template: "<<.Resource>>"
+      name:
+        matches: "^kong_nginx_requests_total"
+        as: "http_requests_per_second"
+      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)'
