@@ -16,3 +16,11 @@ patches:
   target:
     kind: Service
     name: moderation-webhook
+- patch: |-
+    - op: add
+      path: /spec/template/spec/nodeSelector
+      value:
+        cmccloud-k8s-nodegroups: nodegroup-nn6b
+  target:
+    kind: Deployment
+    name: moderation-service

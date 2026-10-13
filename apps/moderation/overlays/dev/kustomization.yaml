@@ -32,6 +32,10 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          cmccloud-k8s-nodegroups: nodegroup-dev
   - target:
       kind: HorizontalPodAutoscaler
       name: moderation-service

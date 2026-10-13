@@ -38,3 +38,10 @@ patches:
   target:
     kind: ConfigMap
     name: order-service-config
+- patch: |-
+    - op: add
+      path: /spec/template/spec/nodeSelector
+      value:
+        cmccloud-k8s-nodegroups: nodegroup-nn6b
+  target:
+    kind: Deployment

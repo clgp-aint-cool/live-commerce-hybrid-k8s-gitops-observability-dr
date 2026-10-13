@@ -61,3 +61,10 @@ patches:
       - op: replace
         path: /spec/maxReplicas
         value: 8
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          cmccloud-k8s-nodegroups: nodegroup-dev
