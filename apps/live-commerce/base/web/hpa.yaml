@@ -16,6 +16,8 @@ spec:
         target:
           type: Utilization
           averageUtilization: 50
+    # Request/giây qua Kong (prometheus-adapter, platform/monitoring/prometheus-adapter-values.yaml).
+    # AverageValue: replicas = tổng rps / 5, mỗi pod ~5 rps. (Value sẽ nhân theo số pod hiện tại → scale mãi tới max.)
     - type: Object
       object:
         metric:
@@ -25,5 +27,5 @@ spec:
           kind: Service
           name: web
         target:
-          type: Value
-          value: "5"
+          type: AverageValue
+          averageValue: "5"
