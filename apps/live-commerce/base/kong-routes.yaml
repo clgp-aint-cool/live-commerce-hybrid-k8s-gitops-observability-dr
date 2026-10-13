@@ -7,7 +7,6 @@ metadata:
   name: kong-routes
   annotations:
     konghq.com/strip-path: "false"
-    konghq.com/plugins: prometheus
 spec:
   ingressClassName: kong
   rules:
