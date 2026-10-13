@@ -1,0 +1,80 @@
+# Prometheus riêng cho HPA theo request (chart prometheus-community/prometheus 29.36.0, ns monitoring).
+#   helm upgrade --install prometheus-hpa prometheus-community/prometheus -n monitoring --version 29.36.0 -f platform/monitoring/prometheus-hpa-values.yaml
+# KHÔNG sửa Prometheus CMC (cmc-monitoring): nó phục vụ trang monitor của CMC Cloud.
+# Chỉ scrape Kong + đọc kube_service_info từ kube-state-metrics của CMC (chỉ đọc), giữ 1 ngày, không PVC.
+# prometheus-adapter đọc từ đây (platform/monitoring/prometheus-adapter-values.yaml).
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  nodeSelector:
+    dedicated: monitor
+  tolerations:
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: monitor
+  retention: 1d
+  persistentVolume:
+    enabled: false
+  global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 512Mi}
+
+# Bỏ toàn bộ job mặc định của chart (scrape cả cluster): chỉ cần 2 job ở dưới.
+scrapeConfigs: null   # null = xóa map mặc định ({} thì Helm gộp lại, không xóa)
+
+serverFiles:
+  recording_rules.yml:
+    groups:
+      - name: kong-hpa
+        rules:
+          # Request/giây của từng Service, nhãn namespace/service khớp object Kubernetes.
+          # Kong đặt tên service "<ns>.<svc>.<port>" (vd live-commerce.web.80) → tách bằng label_replace.
+          # "or ... * 0": Service chưa có traffic vẫn có series = 0, HPA không báo "could not find the metric".
+          - record: kong_service:requests:rate2m
+            expr: |
+              sum by (namespace, service) (
+                label_replace(
+                  label_replace(rate(kong_http_requests_total{service!=""}[2m]),
+                    "namespace", "$1", "service", "([^.]+)\\..+"),
+                  "service", "$1", "service", "[^.]+\\.([^.]+)\\..+"))
+              or
+              sum by (namespace, service) (kube_service_info{namespace=~"live-commerce.*|moderation.*"}) * 0
+  prometheus.yml:
+    rule_files:
+      - /etc/config/recording_rules.yml
+    scrape_configs:
+      # Từng pod Kong (cổng "status" 8100), không qua Service: qua Service mỗi lần trúng một pod, counter nhảy, rate() sai.
+      - job_name: kong
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [kong]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+            regex: kong;status
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: kong_http_requests_total
+            action: keep
+      # Danh sách Service để điền 0. Chỉ đọc kube-state-metrics của CMC, không sửa gì bên đó.
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: [kube-state-metrics.cmc-monitoring.svc:8080]
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: kube_service_info
+            action: keep
