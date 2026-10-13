@@ -32,7 +32,7 @@ patches:
         path: /spec/replicas
         value: 1
   - target:
-      kind: HorizontalPodAutoscaler   # mọi HPA: dev chạy 1 pod, tối đa 3
+      kind: HorizontalPodAutoscaler   # mọi HPA mặc định: dev chạy 1 pod, tối đa 3
     patch: |-
       - op: replace
         path: /spec/minReplicas
@@ -40,3 +40,24 @@ patches:
       - op: replace
         path: /spec/maxReplicas
         value: 3
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: product-service
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 8
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: order-service
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 8
