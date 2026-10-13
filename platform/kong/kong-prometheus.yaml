@@ -1,5 +1,5 @@
 # Plugin prometheus toàn cục: Kong xuất kong_http_requests_total{service="<ns>.<svc>.<port>"} ở cổng status 8100.
-# Prometheus (CMC) scrape từng pod Kong: platform/monitoring/cmc-prometheus/. HPA đọc qua prometheus-adapter.
+# Global: áp cho mọi route, không cần annotation konghq.com/plugins. Prometheus prometheus-hpa (ns monitoring) scrape từng pod Kong.
 apiVersion: configuration.konghq.com/v1
 kind: KongClusterPlugin
 metadata:

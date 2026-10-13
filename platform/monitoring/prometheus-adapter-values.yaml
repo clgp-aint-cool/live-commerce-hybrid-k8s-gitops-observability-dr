@@ -1,9 +1,9 @@
 # prometheus-adapter (chart 5.3.0): cung cấp custom.metrics.k8s.io cho HPA theo request.
 #   helm upgrade prometheus-adapter prometheus-community/prometheus-adapter -n monitoring --version 5.3.0 -f platform/monitoring/prometheus-adapter-values.yaml
-# Nguồn số liệu: recording rule kong_service:requests:rate2m (platform/monitoring/cmc-prometheus/rules.yaml),
-# đã là request/giây của từng Service, nhãn namespace/service khớp object Kubernetes.
+# Nguồn số liệu: Prometheus riêng prometheus-hpa (platform/monitoring/prometheus-hpa-values.yaml), KHÔNG dùng Prometheus CMC.
+# Recording rule kong_service:requests:rate2m đã là request/giây của từng Service, nhãn namespace/service khớp object Kubernetes.
 prometheus:
-  url: http://prometheus-server.cmc-monitoring.svc
+  url: http://prometheus-hpa-server.monitoring.svc
   port: 80
   path: ""
 
