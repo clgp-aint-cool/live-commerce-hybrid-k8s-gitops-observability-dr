@@ -7,22 +7,22 @@ resources:
 images:
 - name: 192.168.6.194/live-commerce/auth-service
   newName: 192.168.6.194/live-commerce/auth-service
-  newTag: e9111e15
+  newTag: e870a03b
 - name: 192.168.6.194/live-commerce/chat-service
   newName: 192.168.6.194/live-commerce/chat-service
-  newTag: 257fdce4
+  newTag: e870a03b
 - name: 192.168.6.194/live-commerce/live-manager
   newName: 192.168.6.194/live-commerce/live-manager
-  newTag: e9111e15
+  newTag: e870a03b
 - name: 192.168.6.194/live-commerce/order-service
   newName: 192.168.6.194/live-commerce/order-service
-  newTag: 257fdce4
+  newTag: e870a03b
 - name: 192.168.6.194/live-commerce/product-service
   newName: 192.168.6.194/live-commerce/product-service
-  newTag: 257fdce4
+  newTag: e870a03b
 - name: 192.168.6.194/live-commerce/web
   newName: 192.168.6.194/live-commerce/web
-  newTag: e9111e15
+  newTag: e870a03b
 patches:
 - patch: |-
     - op: replace
