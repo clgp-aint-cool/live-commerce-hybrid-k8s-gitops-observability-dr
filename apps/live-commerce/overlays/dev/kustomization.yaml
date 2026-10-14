@@ -60,7 +60,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/maxReplicas
-        value: 8
+        value: 10
   - target:
       kind: HorizontalPodAutoscaler
       name: live-manager
