@@ -6,17 +6,17 @@ resources:
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện dùng Secret thường (docs/migrate-cmc-k8s.md mục 7.2 hoặc scripts/deploy.sh).
 images:
   - name: 192.168.6.194/live-commerce/chat-service
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/product-service
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/order-service
-    newTag: "257fdce4"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/auth-service
-    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/live-manager
-    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
   - name: 192.168.6.194/live-commerce/web
-    newTag: "e9111e15"   # scripts/deploy.sh / promote ghi đè
+    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
 patches:
   - target:
       kind: Ingress
