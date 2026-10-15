@@ -73,7 +73,7 @@ kubectl apply -k platform/monitoring/grafana
 
 **4. Kiểm tra:** Grafana → Alerting → Alert rules (folder *Live Commerce*), Contact points → `discord-critical` → **Test**, kiểm tra tin vào đúng #alert-critical và có tag @SRE On-call.
 
-Sidecar gọi `/api/admin/.../reload` bằng tài khoản trong Secret `grafana`. Nếu đổi mật khẩu admin trên UI, reload trả 401: dashboard vẫn tự nạp (file provider quét định kỳ) nhưng **alert chỉ nạp khi Grafana khởi động lại**.
+Alert (ConfigMap `lc-alerting`, Secret contact point) được sidecar chạy dạng **init container** (`sidecar.alerts.initAlerts`) ghi ra trước khi Grafana khởi động, không có reload nóng. Sửa alert xong: `kubectl apply -k platform/monitoring/grafana && kubectl -n monitoring rollout restart deploy/grafana`. Dashboard vẫn tự nạp (sidecar dashboards + file provider quét định kỳ).
 
 ## Alert → Discord
 
