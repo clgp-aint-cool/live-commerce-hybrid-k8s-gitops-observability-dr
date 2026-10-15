@@ -714,11 +714,17 @@ def alert_rules():
              "live-manager gặp {{ printf \"%.0f\" .Values.A.Value }} lỗi AWS IVS trong 10 phút",
              "Có thể do throttling TPS của IVS, credential hết hạn hoặc VPN/Internet ra AWS gặp sự cố. Seller có thể không phát được.",
              "lc-overview"),
+        # Mỗi phiên là một alert riêng (label session/shop/title lấy từ log moderation-service),
+        # để vi phạm ở phiên khác không bị gộp vào alert đang firing.
         rule("lc-moderation-stop", "Phiên live bị dừng do vi phạm",
-             q_loki('sum by (kind) (count_over_time({namespace=~"moderation.*", app="moderation-service"} |= "STREAM_STOPPED" '
-                    '| regexp `Moderation event \\S+: (?P<kind>[A-Z_]+)/` [5m]))'),
+             q_loki('sum by (kind, violation, session, shop, title) (count_over_time('
+                    '{namespace=~"moderation.*", app="moderation-service"} |= "STREAM_STOPPED" '
+                    '| regexp `Moderation event \\S+: (?P<kind>[A-Z_]+)/\\S+ labels=(?P<violation>.*?) '
+                    'session=(?P<session>\\S+) shop="(?P<shop>[^"]*)" title="(?P<title>[^"]*)"` '
+                    '| session != "" [5m]))'),
              "gt", 0, "0s", "info",
-             "🛑 {{ printf \"%.0f\" .Values.A.Value }} phiên live bị dừng do {{ .Labels.kind }}",
+             "🛑 Shop {{ or .Labels.shop \"(không rõ)\" }} – phiên «{{ or .Labels.title \"(không rõ)\" }}» bị dừng do {{ .Labels.kind }}",
+             "Nhãn vi phạm: **{{ .Labels.violation }}**. Session `{{ .Labels.session }}`. "
              "moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.", "lc-overview", team="trust-safety"),
         rule("lc-error-log-spike", "Log lỗi tăng đột biến",
              q_loki('sum by (app) (count_over_time({namespace=~"live-commerce.*|moderation.*"} |~ "(?i)\\b(error|exception|fatal)\\b" [5m]))'),
@@ -842,7 +848,9 @@ def policies():
         "group_wait": "30s", "group_interval": "5m", "repeat_interval": "4h",
         "routes": [
             # Moderation: về kênh Trust & Safety, không làm ồn kênh on-call.
+            # group theo session: mỗi phiên bị dừng là một tin Discord riêng, gửi gần như ngay.
             {"receiver": "discord-trust-safety", "object_matchers": [["team", "=", "trust-safety"]],
+             "group_by": ["grafana_folder", "alertname", "session"], "group_wait": "10s",
              "repeat_interval": "4h", "continue": False},
             {"receiver": "discord-critical", "object_matchers": [["severity", "=", "critical"]],
              "group_wait": "10s", "group_interval": "2m", "repeat_interval": "30m", "continue": False},

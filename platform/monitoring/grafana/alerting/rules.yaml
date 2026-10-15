@@ -602,7 +602,8 @@ groups:
       datasourceUid: loki
       model:
         refId: A
-        expr: 'sum by (kind) (count_over_time({namespace=~"moderation.*", app="moderation-service"} |= "STREAM_STOPPED" | regexp `Moderation event \S+: (?P<kind>[A-Z_]+)/` [5m]))'
+        expr: 'sum by (kind, violation, session, shop, title) (count_over_time({namespace=~"moderation.*", app="moderation-service"} |= "STREAM_STOPPED" | regexp `Moderation event \S+: (?P<kind>[A-Z_]+)/\S+
+          labels=(?P<violation>.*?) session=(?P<session>\S+) shop="(?P<shop>[^"]*)" title="(?P<title>[^"]*)"` | session != "" [5m]))'
         queryType: instant
         intervalMs: 1000
         maxDataPoints: 43200
@@ -625,8 +626,8 @@ groups:
     for: 0s
     isPaused: false
     annotations:
-      summary: 🛑 {{ printf "%.0f" .Values.A.Value }} phiên live bị dừng do {{ .Labels.kind }}
-      description: moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.
+      summary: 🛑 Shop {{ or .Labels.shop "(không rõ)" }} – phiên «{{ or .Labels.title "(không rõ)" }}» bị dừng do {{ .Labels.kind }}
+      description: 'Nhãn vi phạm: **{{ .Labels.violation }}**. Session `{{ .Labels.session }}`. moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.'
       __dashboardUid__: lc-overview
       __panelId__: '22'
     labels:
