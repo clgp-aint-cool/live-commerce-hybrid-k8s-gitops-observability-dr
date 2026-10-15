@@ -16,6 +16,11 @@ policies:
     - - team
       - '='
       - trust-safety
+    group_by:
+    - grafana_folder
+    - alertname
+    - session
+    group_wait: 10s
     repeat_interval: 4h
     continue: false
   - receiver: discord-critical
