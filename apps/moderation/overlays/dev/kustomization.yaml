@@ -2,47 +2,48 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: moderation-dev
 resources:
-  - ../../base
+- ../../base
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret (harbor-registry, moderation-service-secret)
 images:
-  - name: 192.168.6.194/live-commerce/moderation-service
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
+- name: 192.168.6.194/live-commerce/moderation-service
+  newName: 192.168.6.194/live-commerce/moderation-service
+  newTag: 26834cb3
 patches:
-  - target:
-      kind: Service
-      name: moderation-webhook
-    patch: |-
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 30184
-  - target:
-      kind: ConfigMap
-      name: moderation-service-config
-    patch: |-
-      - op: replace
-        path: /data/CHAT_SERVICE_URL
-        value: "http://chat-service.live-commerce-dev.svc.cluster.local"
-      - op: replace
-        path: /data/LIVE_MANAGER_URL
-        value: "http://live-manager.live-commerce-dev.svc.cluster.local"
-  - target:
-      kind: Deployment
-      name: moderation-service
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-      - op: add
-        path: /spec/template/spec/nodeSelector
-        value:
-          cmccloud-k8s-nodegroups: nodegroup-dev
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: moderation-service
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 1
-      - op: replace
-        path: /spec/maxReplicas
-        value: 3
+- patch: |-
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 30184
+  target:
+    kind: Service
+    name: moderation-webhook
+- patch: |-
+    - op: replace
+      path: /data/CHAT_SERVICE_URL
+      value: "http://chat-service.live-commerce-dev.svc.cluster.local"
+    - op: replace
+      path: /data/LIVE_MANAGER_URL
+      value: "http://live-manager.live-commerce-dev.svc.cluster.local"
+  target:
+    kind: ConfigMap
+    name: moderation-service-config
+- patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+    - op: add
+      path: /spec/template/spec/nodeSelector
+      value:
+        cmccloud-k8s-nodegroups: nodegroup-dev
+  target:
+    kind: Deployment
+    name: moderation-service
+- patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 1
+    - op: replace
+      path: /spec/maxReplicas
+      value: 3
+  target:
+    kind: HorizontalPodAutoscaler
+    name: moderation-service

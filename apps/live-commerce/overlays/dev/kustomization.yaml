@@ -2,76 +2,77 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: live-commerce-dev
 resources:
-  - ../../base
+- ../../base
   # - secrets/        # chỉ bật khi chuyển sang SealedSecret. Hiện dùng Secret thường (docs/migrate-cmc-k8s.md mục 7.2 hoặc scripts/deploy.sh).
 images:
-  - name: 192.168.6.194/live-commerce/chat-service
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/product-service
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/order-service
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/auth-service
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/live-manager
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
-  - name: 192.168.6.194/live-commerce/web
-    newTag: "e870a03b"   # scripts/deploy.sh / promote ghi đè
+- name: 192.168.6.194/live-commerce/auth-service
+  newTag: e870a03b
+- name: 192.168.6.194/live-commerce/chat-service
+  newTag: e870a03b
+- name: 192.168.6.194/live-commerce/live-manager
+  newName: 192.168.6.194/live-commerce/live-manager
+  newTag: 26834cb3
+- name: 192.168.6.194/live-commerce/order-service
+  newTag: e870a03b
+- name: 192.168.6.194/live-commerce/product-service
+  newTag: e870a03b
+- name: 192.168.6.194/live-commerce/web
+  newTag: e870a03b
 patches:
-  - target:
-      kind: Ingress
-      name: kong-routes
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: dev.cmc-cloud-hcm1.cloud   # cần DNS Cloudflare: dev → cùng IP apex (proxied)
-  - target:
-      kind: Deployment
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 1
-  - target:
-      kind: HorizontalPodAutoscaler   # mọi HPA mặc định: dev chạy 1 pod, tối đa 3
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 1
-      - op: replace
-        path: /spec/maxReplicas
-        value: 3
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: web
-    patch: |-
-      - op: replace
-        path: /spec/maxReplicas
-        value: 10
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: product-service
-    patch: |-
-      - op: replace
-        path: /spec/maxReplicas
-        value: 8
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: order-service
-    patch: |-
-      - op: replace
-        path: /spec/maxReplicas
-        value: 10
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: live-manager
-    patch: |-
-      - op: replace
-        path: /spec/maxReplicas
-        value: 8
-  - target:
-      kind: Deployment
-    patch: |-
-      - op: add
-        path: /spec/template/spec/nodeSelector
-        value:
-          cmccloud-k8s-nodegroups: nodegroup-dev
+- patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: dev.cmc-cloud-hcm1.cloud   # cần DNS Cloudflare: dev → cùng IP apex (proxied)
+  target:
+    kind: Ingress
+    name: kong-routes
+- patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+  target:
+    kind: Deployment
+- patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 1
+    - op: replace
+      path: /spec/maxReplicas
+      value: 3
+  target:
+    kind: HorizontalPodAutoscaler
+- patch: |-
+    - op: replace
+      path: /spec/maxReplicas
+      value: 10
+  target:
+    kind: HorizontalPodAutoscaler
+    name: web
+- patch: |-
+    - op: replace
+      path: /spec/maxReplicas
+      value: 8
+  target:
+    kind: HorizontalPodAutoscaler
+    name: product-service
+- patch: |-
+    - op: replace
+      path: /spec/maxReplicas
+      value: 10
+  target:
+    kind: HorizontalPodAutoscaler
+    name: order-service
+- patch: |-
+    - op: replace
+      path: /spec/maxReplicas
+      value: 8
+  target:
+    kind: HorizontalPodAutoscaler
+    name: live-manager
+- patch: |-
+    - op: add
+      path: /spec/template/spec/nodeSelector
+      value:
+        cmccloud-k8s-nodegroups: nodegroup-dev
+  target:
+    kind: Deployment
