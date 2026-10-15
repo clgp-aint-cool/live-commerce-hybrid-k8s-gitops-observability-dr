@@ -1645,7 +1645,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "{namespace=~\"$namespace\", pod=~\"$pod\"}",
+          "expr": "{namespace=~\"$namespace\", pod=~\"($deployment)-[a-z0-9]{8,10}-[a-z0-9]{5}\", pod=~\"$pod\"}",
           "refId": "A",
           "legendFormat": "__auto",
           "queryType": "range"

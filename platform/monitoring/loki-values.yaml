@@ -1,10 +1,89 @@
-# Loki chế độ single binary cho đồ án. Kiểm tra khóa cấu hình theo chart Loki đã ghim (chart Loki có thay đổi nơi duy trì).
+# Loki single binary, chart grafana/loki 7.3.0. Đồng bộ với release đang chạy (`helm get values loki -n monitoring`).
+# Chunk + index lưu trên S3 CMC (bucket cmc-live-loki-logs); /var/loki (WAL, index tsdb chưa upload, compactor)
+# nằm trên PVC để restart pod không mất log vài phút gần nhất.
+#
+# Đổi từ emptyDir sang PVC: volumeClaimTemplates của StatefulSet không sửa được, phải xóa sts (giữ pod) rồi upgrade:
+#   kubectl -n monitoring delete sts loki --cascade=orphan
+#   helm upgrade loki grafana/loki -n monitoring --version 7.3.0 -f platform/monitoring/loki-values.yaml
 deploymentMode: SingleBinary
+
 loki:
   auth_enabled: false
   commonConfig:
     replication_factor: 1
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+  podSecurityContext:
+    fsGroup: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    runAsUser: 10001
+  ingester:
+    # Flush chunk lên S3 sau tối đa 2 phút để log mới query được sớm.
+    chunk_idle_period: 2m
+    chunk_target_size: 500000
+    max_chunk_age: 2m
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        index:
+          period: 24h
+          prefix: index_
+        object_store: s3
+        schema: v13
+        store: tsdb
   storage:
-    type: filesystem
+    type: s3
+    bucketNames:
+      admin: cmc-live-loki-logs
+      chunks: cmc-live-loki-logs
+      ruler: cmc-live-loki-logs
+    s3:
+      endpoint: https://s3.hcm-5.cloud.cmctelecom.vn
+      region: hcm-5
+      s3ForcePathStyle: true
+      insecure: false
+  # Giữ log 7 ngày (bằng reject_old_samples_max_age); compactor xóa chunk cũ trên S3.
+  limits_config:
+    retention_period: 168h
+  compactor:
+    retention_enabled: true
+    delete_request_store: s3
+
 singleBinary:
   replicas: 1
+  # Access key S3 (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) – Secret tạo tay, không commit.
+  extraEnvFrom:
+    - secretRef:
+        name: loki-cmc-secret
+  persistence:
+    enabled: true
+    storageClass: highio      # Cinder, StorageClass duy nhất, không phải default
+    size: 10Gi
+  nodeSelector:
+    dedicated: monitor
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: monitor
+      effect: NoSchedule
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+sidecar:
+  rules:
+    enabled: false

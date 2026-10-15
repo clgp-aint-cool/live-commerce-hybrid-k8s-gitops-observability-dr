@@ -74,6 +74,10 @@ sidecar:
       foldersFromFilesStructure: true
   alerts:
     enabled: true
+    # Chạy thêm bản init container: ghi file alert XONG rồi Grafana mới khởi động. Không có cái này, Grafana
+    # provision trước khi sidecar ghi file (~2s) và giữ rule cũ trong DB (PVC); reload sau đó lại 401 nếu
+    # mật khẩu admin đã đổi trên UI. Nhờ vậy restart Grafana luôn nạp đúng alert mới nhất.
+    initAlerts: true
     env:
       # Cert API server của CMC thiếu Authority Key Identifier → Python 3.14 trong sidecar từ chối (giống sidecar dashboards).
       SKIP_TLS_VERIFY: "true"

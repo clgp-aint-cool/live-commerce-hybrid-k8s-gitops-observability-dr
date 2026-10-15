@@ -470,7 +470,9 @@ def workloads():
              unit="pps"), 12, 8)
 
     g.row("Log")
-    g.add(logs("Log của pod đã chọn", '{namespace=~"$namespace", pod=~"$pod"}'), 24, 12)
+    # Lọc theo deployment (regex tên pod) + $pod: $pod=All (".+") vẫn chỉ ra log của deployment đã chọn,
+    # kể cả pod cũ đã bị rollout thay (biến $pod lấy từ Prometheus nên chỉ liệt kê pod đang sống).
+    g.add(logs("Log của pod đã chọn", f'{{{psel}}}'), 24, 12)
     return dashboard("lc-workloads", "Live Commerce / 02 · Workloads & Autoscaling", g.panels, vars_,
                      ["workloads", "hpa"], "Deployment, HPA, CPU/memory/throttling/OOM, network theo pod.", time_from="now-1h")
 
