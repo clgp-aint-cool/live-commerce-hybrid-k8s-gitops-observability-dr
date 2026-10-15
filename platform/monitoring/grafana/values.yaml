@@ -74,15 +74,16 @@ sidecar:
       foldersFromFilesStructure: true
   alerts:
     enabled: true
-    # Chạy thêm bản init container: ghi file alert XONG rồi Grafana mới khởi động. Không có cái này, Grafana
-    # provision trước khi sidecar ghi file (~2s) và giữ rule cũ trong DB (PVC); reload sau đó lại 401 nếu
-    # mật khẩu admin đã đổi trên UI. Nhờ vậy restart Grafana luôn nạp đúng alert mới nhất.
+    # Chạy sidecar dạng init container (chart 10.5.x: THAY cho sidecar thường, không chạy song song): ghi file alert
+    # xong rồi Grafana mới khởi động, nên restart luôn nạp đúng alert mới nhất. Trước đây Grafana provision trước khi
+    # sidecar ghi file (~2s), giữ rule cũ trong DB (PVC), còn reload lại 401 vì mật khẩu admin đã đổi trên UI.
+    # Đổi ConfigMap lc-alerting / Secret contact point xong phải: kubectl -n monitoring rollout restart deploy/grafana
     initAlerts: true
     env:
       # Cert API server của CMC thiếu Authority Key Identifier → Python 3.14 trong sidecar từ chối (giống sidecar dashboards).
       SKIP_TLS_VERIFY: "true"
-      # Sidecar dashboards đã chiếm cổng health 8080 trong cùng pod.
-      HEALTH_PORT: "8081"
+    # Không đặt HEALTH_PORT trong env: chart đã tự gán 8081 (khác 8080 của sidecar dashboards); đặt thêm sẽ
+    # trùng key ở init container (initAlerts) và server-side apply từ chối.
     label: grafana_alert
     labelValue: "1"
     # Chỉ đọc ở ns monitoring (Secret chứa webhook Discord cũng ở đây).
