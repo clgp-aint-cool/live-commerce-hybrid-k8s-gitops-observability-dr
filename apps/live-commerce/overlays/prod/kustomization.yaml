@@ -13,7 +13,7 @@ images:
   newTag: e870a03b
 - name: 192.168.6.194/live-commerce/live-manager
   newName: 192.168.6.194/live-commerce/live-manager
-  newTag: e870a03b
+  newTag: 26834cb3
 - name: 192.168.6.194/live-commerce/order-service
   newName: 192.168.6.194/live-commerce/order-service
   newTag: e870a03b
