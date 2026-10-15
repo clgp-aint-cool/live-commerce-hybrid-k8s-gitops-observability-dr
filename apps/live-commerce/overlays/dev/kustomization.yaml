@@ -15,7 +15,8 @@ images:
 - name: 192.168.6.194/live-commerce/order-service
   newTag: e870a03b
 - name: 192.168.6.194/live-commerce/product-service
-  newTag: e870a03b
+  newName: 192.168.6.194/live-commerce/product-service
+  newTag: 0c48d75b
 - name: 192.168.6.194/live-commerce/web
   newTag: e870a03b
 patches:
