@@ -589,7 +589,7 @@
     },
     {
       "type": "row",
-      "title": "Traffic & lỗi qua Kong (theo service)",
+      "title": "Trạng thái Deployment (UP / DEGRADED / DOWN)",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -599,6 +599,540 @@
         "y": 7
       },
       "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "Deployment UP",
+      "description": "Deployment chạy đủ số pod mong muốn, không pod nào unavailable.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(((max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"}) == 0) * 0 + 3 or (max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) == 0) * 0 or ((max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) >= max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})) and (max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"}) == 0)) * 0 + 2 or max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) * 0 + 1) == 2) or vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Deployment DEGRADED",
+      "description": "Còn pod chạy nhưng thiếu so với desired, hoặc có pod treo (Pending, CrashLoopBackOff, ImagePullBackOff, rollout kẹt).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(((max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"}) == 0) * 0 + 3 or (max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) == 0) * 0 or ((max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) >= max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})) and (max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"}) == 0)) * 0 + 2 or max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) * 0 + 1) == 1) or vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Deployment DOWN",
+      "description": "desired > 0 nhưng không có pod nào available: service đang chết hoàn toàn.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(((max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"}) == 0) * 0 + 3 or (max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) == 0) * 0 or ((max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) >= max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})) and (max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"}) == 0)) * 0 + 2 or max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) * 0 + 1) == 0) or vector(0)",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Trạng thái từng Deployment",
+      "description": "Bấm tên Deployment để mở dashboard Workloads của nó. DOWN/DEGRADED xếp lên đầu.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "(max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"}) == 0) * 0 + 3 or (max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) == 0) * 0 or ((max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) >= max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})) and (max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"}) == 0)) * 0 + 2 or max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) * 0 + 1",
+          "refId": "A",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})",
+          "refId": "B",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"})",
+          "refId": "C",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"})",
+          "refId": "D",
+          "legendFormat": "__auto",
+          "range": false,
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trạng thái"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "DEGRADED",
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "2": {
+                        "text": "UP",
+                        "color": "green",
+                        "index": 2
+                      },
+                      "3": {
+                        "text": "SCALED 0",
+                        "color": "text",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Unavailable"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deployment"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Mở Workloads",
+                    "url": "/d/lc-workloads?var-namespace=${__data.fields.Namespace}&var-deployment=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Trạng thái",
+            "desc": false
+          }
+        ],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "Value #A": 0,
+              "namespace": 1,
+              "deployment": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5
+            },
+            "renameByName": {
+              "Value #A": "Trạng thái",
+              "namespace": "Namespace",
+              "deployment": "Deployment",
+              "Value #B": "Desired",
+              "Value #C": "Available",
+              "Value #D": "Unavailable"
+            }
+          }
+        }
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Trạng thái Deployment theo thời gian",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "description": "Xanh UP · cam DEGRADED · đỏ DOWN · xám SCALED 0.",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "(max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"}) == 0) * 0 + 3 or (max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) == 0) * 0 or ((max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) >= max by (namespace, deployment) (kube_deployment_spec_replicas{namespace=~\"$namespace\"})) and (max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{namespace=~\"$namespace\"}) == 0)) * 0 + 2 or max by (namespace, deployment) (kube_deployment_status_replicas_available{namespace=~\"$namespace\"}) * 0 + 1",
+          "refId": "A",
+          "legendFormat": "{{namespace}}/{{deployment}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "DEGRADED",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 2
+                },
+                "3": {
+                  "text": "SCALED 0",
+                  "color": "text",
+                  "index": 3
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 85
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.85,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      }
+    },
+    {
+      "type": "row",
+      "title": "Traffic & lỗi qua Kong (theo service)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 15
     },
     {
       "type": "timeseries",
@@ -671,12 +1205,12 @@
           "sort": "desc"
         }
       },
-      "id": 10,
+      "id": 16,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 21
       }
     },
     {
@@ -811,12 +1345,12 @@
           "sort": "desc"
         }
       },
-      "id": 11,
+      "id": 17,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 21
       }
     },
     {
@@ -895,12 +1429,12 @@
           "sort": "desc"
         }
       },
-      "id": 12,
+      "id": 18,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 29
       }
     },
     {
@@ -992,12 +1526,12 @@
           "sort": "desc"
         }
       },
-      "id": 13,
+      "id": 19,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 29
       }
     },
     {
@@ -1073,12 +1607,12 @@
           }
         }
       ],
-      "id": 14,
+      "id": 20,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 37
       }
     },
     {
@@ -1154,12 +1688,12 @@
           }
         }
       ],
-      "id": 15,
+      "id": 21,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 37
       }
     },
     {
@@ -1171,9 +1705,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 45
       },
-      "id": 16
+      "id": 22
     },
     {
       "type": "timeseries",
@@ -1246,12 +1780,12 @@
           "sort": "desc"
         }
       },
-      "id": 17,
+      "id": 23,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 33
+        "y": 46
       }
     },
     {
@@ -1351,12 +1885,12 @@
           "sort": "desc"
         }
       },
-      "id": 18,
+      "id": 24,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 33
+        "y": 46
       }
     },
     {
@@ -1368,9 +1902,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 54
       },
-      "id": 19
+      "id": 25
     },
     {
       "type": "timeseries",
@@ -1453,12 +1987,12 @@
           "sort": "desc"
         }
       },
-      "id": 20,
+      "id": 26,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 42
+        "y": 55
       }
     },
     {
@@ -1558,12 +2092,12 @@
           "sort": "desc"
         }
       },
-      "id": 21,
+      "id": 27,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 42
+        "y": 55
       }
     },
     {
@@ -1637,12 +2171,12 @@
           "sort": "desc"
         }
       },
-      "id": 22,
+      "id": 28,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 42
+        "y": 55
       }
     },
     {
@@ -1750,12 +2284,12 @@
           "sort": "desc"
         }
       },
-      "id": 23,
+      "id": 29,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 63
       }
     },
     {
@@ -1829,12 +2363,12 @@
           "sort": "desc"
         }
       },
-      "id": 24,
+      "id": 30,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 63
       }
     },
     {
@@ -1846,9 +2380,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 71
       },
-      "id": 25
+      "id": 31
     },
     {
       "type": "logs",
@@ -1878,12 +2412,12 @@
         "dedupStrategy": "none",
         "prettifyLogMessage": false
       },
-      "id": 26,
+      "id": 32,
       "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 72
       }
     }
   ]

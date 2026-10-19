@@ -333,7 +333,7 @@ groups:
       description: Hơn 5 % request tới {{ .Labels.svc }} lỗi 5xx trong 5 phút (chỉ xét khi > 20 request). Vi phạm SLO 99,9 %.
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-kong-5xx-ratio
-      __panelId__: '12'
+      __panelId__: '18'
     labels:
       severity: critical
       team: platform
@@ -379,7 +379,7 @@ groups:
       description: Kong không kết nối được service (pod chết, readiness fail hoặc timeout).
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-kong-upstream-down
-      __panelId__: '11'
+      __panelId__: '17'
     labels:
       severity: critical
       team: platform
@@ -422,7 +422,7 @@ groups:
       description: order-service không ghi được đơn vào PostgreSQL DBaaS – mất doanh thu trực tiếp. Kiểm tra kết nối DBaaS, pool, max_connections.
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-order-write-fail
-      __panelId__: '18'
+      __panelId__: '24'
     labels:
       severity: critical
       team: platform
@@ -466,7 +466,7 @@ groups:
       description: Sau khi ghi đơn lỗi, order-service không trả lại tồn kho trên Redis. Cần đối soát tồn kho thủ công.
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-inventory-rollback-fail
-      __panelId__: '18'
+      __panelId__: '24'
     labels:
       severity: critical
       team: platform
@@ -510,7 +510,7 @@ groups:
       description: Có thể do throttling TPS của IVS, credential hết hạn hoặc VPN/Internet ra AWS gặp sự cố. Seller có thể không phát được.
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-ivs-errors
-      __panelId__: '21'
+      __panelId__: '27'
     labels:
       severity: warning
       team: platform
@@ -554,7 +554,7 @@ groups:
       description: 'Nhãn vi phạm: **{{ .Labels.violation }}**. Session `{{ .Labels.session }}`. moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.'
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-moderation-stop
-      __panelId__: '22'
+      __panelId__: '28'
     labels:
       severity: info
       team: trust-safety
@@ -597,7 +597,7 @@ groups:
       description: Số log lỗi vượt 50 dòng/5 phút liên tục.
       __dashboardUid__: lc-overview
       runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-error-log-spike
-      __panelId__: '24'
+      __panelId__: '30'
     labels:
       severity: warning
       team: platform

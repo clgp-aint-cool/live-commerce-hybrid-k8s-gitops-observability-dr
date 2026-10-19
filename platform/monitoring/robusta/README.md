@@ -3,7 +3,8 @@
 Robusta (chart `robusta/robusta` 0.53.0, ns `robusta`) gửi alert pod/deployment vào Discord #alert-critical, kèm log, event, kết quả điều tra pod và link runbook.
 
 Nguồn alert:
-- **Kubernetes trực tiếp**: pod crash (`on_pod_crash_loop`), OOMKilled (`on_pod_oom_killed`).
+- **Kubernetes trực tiếp**: builtin playbook của Robusta (pod crash, OOMKilled, ImagePullBackOff; 1 lần/giờ mỗi pod).
+  Không thêm playbook riêng cho chúng (sinh thêm tin INFO "Update to pod"); link runbook do `alert-bot` gắn vào ticket.
 - **Grafana**: 6 rule có nhãn `route=robusta` (`ROBUSTA_RULES` trong `grafana/gen.py`), route `robusta-rca` gửi webhook tới `robusta-runner:80/api/alerts`. Các rule này không gửi thẳng Discord.
 
 `playbooks.yaml` sinh từ `grafana/gen.py`: mỗi alert một playbook, gắn link `https://runbooklive-e-commerce.vercel.app/#<uid>`

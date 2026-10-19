@@ -250,6 +250,73 @@ def dashboard(uid, title, panels, variables, tags, desc, refresh="30s", time_fro
 # =====================================================================================
 # 01 — Tổng quan dịch vụ (NOC / điều hành)
 # =====================================================================================
+# Trạng thái mỗi Deployment (0 DOWN, 1 DEGRADED, 2 UP, 3 SCALED 0). Nhánh `or` đầu tiên khớp sẽ thắng:
+#   desired = 0                          → SCALED 0 (cố ý tắt, không phải sự cố)
+#   available = 0                        → DOWN: không pod nào chạy được
+#   available ≥ desired, unavailable = 0 → UP: đủ pod
+#   còn lại                              → DEGRADED: có pod treo (Pending/CrashLoop/ImagePull, rollout kẹt)
+def deploy_status(sel):
+    def m(metric):
+        return f'max by (namespace, deployment) ({metric}{{{sel}}})'
+    d, a, u = (m("kube_deployment_spec_replicas"), m("kube_deployment_status_replicas_available"),
+               m("kube_deployment_status_replicas_unavailable"))
+    return (f'({d} == 0) * 0 + 3 or ({a} == 0) * 0'
+            f' or (({a} >= {d}) and ({u} == 0)) * 0 + 2 or {a} * 0 + 1')
+
+
+DEPLOY_STATUS_MAP = [{"type": "value", "options": {
+    "0": {"text": "DOWN", "color": "red", "index": 0},
+    "1": {"text": "DEGRADED", "color": "orange", "index": 1},
+    "2": {"text": "UP", "color": "green", "index": 2},
+    "3": {"text": "SCALED 0", "color": "text", "index": 3}}}]
+
+
+def deployment_status_section(g, sel):
+    st = deploy_status(sel)
+    g.row("Trạng thái Deployment (UP / DEGRADED / DOWN)")
+    for code, label, color, desc in (
+            (2, "UP", "green", "Deployment chạy đủ số pod mong muốn, không pod nào unavailable."),
+            (1, "DEGRADED", "orange", "Còn pod chạy nhưng thiếu so với desired, hoặc có pod treo "
+                                      "(Pending, CrashLoopBackOff, ImagePullBackOff, rollout kẹt)."),
+            (0, "DOWN", "red", "desired > 0 nhưng không có pod nào available: service đang chết hoàn toàn.")):
+        base = "green" if code == 2 else "transparent"
+        g.add(stat(f"Deployment {label}", [tgt(f'count(({st}) == {code}) or vector(0)', instant=True)],
+                   decimals=0, desc=desc, graph="none",
+                   th=thresholds((None, base), (1, color)) if code != 2 else thresholds((None, "green"))), 8, 3)
+    g.add(table("Trạng thái từng Deployment", [
+        tgt(st, instant=True, fmt="table", ref="A"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_spec_replicas{{{sel}}})', instant=True, fmt="table", ref="B"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_status_replicas_available{{{sel}}})', instant=True, fmt="table", ref="C"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{{{sel}}})', instant=True, fmt="table", ref="D"),
+    ], desc="Bấm tên Deployment để mở dashboard Workloads của nó. DOWN/DEGRADED xếp lên đầu.",
+        transformations=[
+            {"id": "merge", "options": {}},
+            {"id": "organize", "options": {
+                "excludeByName": {"Time": True},
+                "indexByName": {"Value #A": 0, "namespace": 1, "deployment": 2, "Value #B": 3, "Value #C": 4, "Value #D": 5},
+                "renameByName": {"Value #A": "Trạng thái", "namespace": "Namespace", "deployment": "Deployment",
+                                 "Value #B": "Desired", "Value #C": "Available", "Value #D": "Unavailable"}}}],
+        sort=[{"displayName": "Trạng thái", "desc": False}],
+        overrides=[
+            {"matcher": {"id": "byName", "options": "Trạng thái"}, "properties": [
+                {"id": "mappings", "value": DEPLOY_STATUS_MAP},
+                {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+                {"id": "custom.width", "value": 110}]},
+            cell_color("Unavailable", "short", thresholds((None, "green"), (1, "red"))),
+            {"matcher": {"id": "byName", "options": "Deployment"}, "properties": [{"id": "links", "value": [{
+                "title": "Mở Workloads", "url": "/d/lc-workloads?var-namespace=${__data.fields.Namespace}"
+                                               "&var-deployment=${__value.raw}&${__url_time_range}"}]}]},
+        ]), 12, 9)
+    g.add({"type": "state-timeline", "title": "Trạng thái Deployment theo thời gian", "datasource": PROM,
+           "description": "Xanh UP · cam DEGRADED · đỏ DOWN · xám SCALED 0.",
+           "targets": [tgt(st, "{{namespace}}/{{deployment}}")],
+           "fieldConfig": {"defaults": {"mappings": DEPLOY_STATUS_MAP, "color": {"mode": "thresholds"},
+                                        "thresholds": thresholds((None, "text")), "custom": {"fillOpacity": 85}},
+                           "overrides": []},
+           "options": {"showValue": "never", "mergeValues": True, "rowHeight": 0.85,
+                       "legend": {"showLegend": False}}}, 12, 9)
+
+
 def overview():
     g = Grid()
     ns = 'namespace=~"$namespace"'
@@ -289,6 +356,8 @@ def overview():
     g.add(stat("Pod restart (1h)",
                [tgt(f'sum(increase(kube_pod_container_status_restarts_total{{{ns}}}[1h])) or vector(0)', instant=True)],
                decimals=0, th=thresholds((None, "green"), (1, "orange"), (5, "red"))), 4, 4)
+
+    deployment_status_section(g, ns)
 
     g.row("Traffic & lỗi qua Kong (theo service)")
     g.add(ts("Request/s theo service", [tgt(f'sum by (svc) (rate({KONG} | svc=~"$service" [$__auto]))', "{{svc}}", ds=LOKI)],
@@ -925,13 +994,10 @@ def robusta_playbooks(rules):
     def runbook(uid, title):
         return {"external_video_enricher": {"name": f"📕 Runbook: {title}", "url": f"{RB}#{uid}"}}
 
-    pbs = [
-        # Bắt trực tiếp từ Kubernetes (báo ngay, kèm log container trước khi chết).
-        {"triggers": [{"on_pod_crash_loop": {"restart_count": 1, "rate_limit": 30}}],
-         "actions": [runbook("lc-pod-crashloop", "Pod restart liên tục"), {"report_crash_loop": {}}], "sinks": sink},
-        {"triggers": [{"on_pod_oom_killed": {"rate_limit": 60}}],
-         "actions": [runbook("lc-pod-oom", "Container bị OOMKilled"), {"pod_oom_killer_enricher": {}}], "sinks": sink},
-    ]
+    # Pod crash / OOMKilled / ImagePullBackOff: dùng builtin playbook của Robusta (rate limit 1h mỗi pod).
+    # KHÔNG thêm playbook riêng gắn runbook cho chúng: enricher chạy trước report_crash_loop tạo thêm 1 finding
+    # INFO "Update to pod …" (tin xanh thừa). Link runbook cho các alert này do alert-bot gắn vào ticket.
+    pbs = []
     for g in rules["groups"]:
         for r in g["rules"]:
             if r["uid"] in ROBUSTA_RULES:

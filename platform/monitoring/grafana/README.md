@@ -98,7 +98,7 @@ Tin nhắn có link Dashboard / Panel / Runbook / Silence. Runbook: https://runb
 | | HPA chạm maxReplicas | warning | 10m |
 | | CPU throttling > 25% | warning | 15m |
 | | Memory > 90% limit | warning | 10m |
-| Robusta (Kubernetes, không qua Grafana) | Pod restart liên tục (`on_pod_crash_loop`), Container bị OOMKilled (`on_pod_oom_killed`) | critical | ngay |
+| Robusta builtin (Kubernetes, không qua Grafana) | Pod restart liên tục, Container bị OOMKilled, ImagePullBackOff (rate limit 1h/pod; runbook do alert-bot gắn vào ticket) | critical | ngay |
 | lc-traffic-business (Loki) | Tỷ lệ 5xx qua Kong > 5% | critical | 3m |
 | | Kong 502/503/504 | critical | 0s |
 | | Ghi đơn hàng thất bại | critical | 0s |
