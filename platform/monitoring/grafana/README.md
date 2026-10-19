@@ -81,24 +81,24 @@ Routing (`policies.yaml`), group theo `alertname, namespace`:
 
 | Điều kiện (xét theo thứ tự) | Contact point → kênh | Ping | Lặp lại |
 |---|---|---|---|
+| `route=robusta` (6 rule pod/deployment, xem dưới) | `robusta-rca` → Robusta → #alert-critical, kèm log/event/runbook | không | 30m |
 | `team=trust-safety` | `discord-trust-safety` → #alert-trust-safety | @Trust & Safety | 4h |
 | `severity=critical` | `discord-critical` → #alert-critical | @SRE On-call | 30m |
 | `severity=warning\|info` | `discord-warning` → #alert-warning | không | 4h |
 
 Chỉ tag role khi alert đang firing, tin resolved không ping ai.
 
-Tin nhắn có link Dashboard / Panel / Runbook / Silence. Link dùng `root_url` trong `values.yaml` (hiện là `http://localhost:3000` qua port-forward, đổi khi có domain).
+Tin nhắn có link Dashboard / Panel / Runbook / Silence. Runbook: https://runbooklive-e-commerce.vercel.app/#<uid rule>. Link dùng `root_url` trong `values.yaml` (hiện là `http://localhost:3000` qua port-forward, đổi khi có domain).
 
 | Nhóm | Rule | Severity | for |
 |---|---|---|---|
-| lc-app-availability | Deployment thiếu replica | critical | 5m |
+| lc-app-availability (`route=robusta`) | Deployment thiếu replica | critical | 5m |
 | | Service DOWN hoàn toàn (0 replica available) | critical | 1m |
-| | Pod restart liên tục (>2 lần/15m) | warning | 0s |
-| | Container bị OOMKilled | warning | 0s |
 | | Container kẹt Waiting | warning | 10m |
 | | HPA chạm maxReplicas | warning | 10m |
 | | CPU throttling > 25% | warning | 15m |
 | | Memory > 90% limit | warning | 10m |
+| Robusta (Kubernetes, không qua Grafana) | Pod restart liên tục (`on_pod_crash_loop`), Container bị OOMKilled (`on_pod_oom_killed`) | critical | ngay |
 | lc-traffic-business (Loki) | Tỷ lệ 5xx qua Kong > 5% | critical | 3m |
 | | Kong 502/503/504 | critical | 0s |
 | | Ghi đơn hàng thất bại | critical | 0s |

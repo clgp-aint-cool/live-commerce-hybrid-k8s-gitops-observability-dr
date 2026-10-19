@@ -45,12 +45,13 @@ groups:
       description: Deployment không đạt số replica mong muốn trong 5 phút. Kiểm tra `kubectl -n {{ .Labels.namespace }} describe deploy {{ .Labels.deployment }}` (ImagePullBackOff từ Harbor, thiếu tài nguyên
         node, probe lỗi).
       __dashboardUid__: lc-workloads
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#deployment-thieu-replica
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-deploy-unavailable
       __panelId__: '4'
     labels:
       severity: critical
       team: platform
       product: live-commerce
+      route: robusta
   - uid: lc-deploy-down
     title: Service DOWN hoàn toàn (0 replica available)
     condition: C
@@ -90,99 +91,13 @@ groups:
       summary: 🔥 {{ .Labels.namespace }}/{{ .Labels.deployment }} không còn pod nào chạy
       description: Toàn bộ pod của service đã mất – người dùng đang bị ảnh hưởng trực tiếp.
       __dashboardUid__: lc-workloads
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#deployment-thieu-replica
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-deploy-down
       __panelId__: '4'
     labels:
       severity: critical
       team: platform
       product: live-commerce
-  - uid: lc-pod-crashloop
-    title: Pod restart liên tục
-    condition: C
-    data:
-    - refId: A
-      relativeTimeRange:
-        from: 600
-        to: 0
-      datasourceUid: prometheus
-      model:
-        refId: A
-        expr: sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total{namespace=~"live-commerce.*|moderation.*"}[15m]))
-        instant: true
-        range: false
-        intervalMs: 1000
-        maxDataPoints: 43200
-    - refId: C
-      datasourceUid: __expr__
-      relativeTimeRange:
-        from: 0
-        to: 0
-      model:
-        refId: C
-        type: threshold
-        expression: A
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 2
-    noDataState: OK
-    execErrState: Error
-    for: 0s
-    isPaused: false
-    annotations:
-      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} restart {{ printf "%.0f" .Values.A.Value }} lần/15m'
-      description: Container {{ .Labels.container }} đang crash. Xem `kubectl logs --previous` hoặc dashboard Workloads.
-      __dashboardUid__: lc-workloads
-      __panelId__: '14'
-    labels:
-      severity: warning
-      team: platform
-      product: live-commerce
-    keep_firing_for: 10m
-  - uid: lc-pod-oom
-    title: Container bị OOMKilled
-    condition: C
-    data:
-    - refId: A
-      relativeTimeRange:
-        from: 600
-        to: 0
-      datasourceUid: prometheus
-      model:
-        refId: A
-        expr: sum by (namespace, pod) (increase(container_oom_events_total{namespace=~"live-commerce.*|moderation.*", container!=""}[10m]))
-        instant: true
-        range: false
-        intervalMs: 1000
-        maxDataPoints: 43200
-    - refId: C
-      datasourceUid: __expr__
-      relativeTimeRange:
-        from: 0
-        to: 0
-      model:
-        refId: C
-        type: threshold
-        expression: A
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-    noDataState: OK
-    execErrState: Error
-    for: 0s
-    isPaused: false
-    annotations:
-      summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} bị OOMKill'
-      description: Container vượt memory limit (512Mi). Cân nhắc tăng limit hoặc tìm rò bộ nhớ.
-      __dashboardUid__: lc-workloads
-      __panelId__: '15'
-    labels:
-      severity: warning
-      team: platform
-      product: live-commerce
+      route: robusta
   - uid: lc-container-waiting
     title: Container kẹt Waiting (ImagePullBackOff / CrashLoopBackOff …)
     condition: C
@@ -221,11 +136,13 @@ groups:
       summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} Waiting: {{ .Labels.reason }}'
       description: ImagePullBackOff thường do robot Harbor hết hạn hoặc CA Harbor chưa có trên node mới.
       __dashboardUid__: lc-workloads
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-container-waiting
       __panelId__: '16'
     labels:
       severity: warning
       team: platform
       product: live-commerce
+      route: robusta
   - uid: lc-hpa-maxed
     title: HPA chạm maxReplicas
     condition: C
@@ -258,17 +175,19 @@ groups:
             - 1
     noDataState: OK
     execErrState: Error
-    for: 10m
+    for: 3m
     isPaused: false
     annotations:
-      summary: HPA {{ .Labels.namespace }}/{{ .Labels.horizontalpodautoscaler }} đã ở max replica 10 phút
+      summary: HPA {{ .Labels.namespace }}/{{ .Labels.horizontalpodautoscaler }} đã ở max replica 3 phút
       description: Không thể scale thêm khi lượng viewer/đơn tiếp tục tăng. Tăng maxReplicas hoặc thêm node trước phiên live lớn.
       __dashboardUid__: lc-workloads
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-hpa-maxed
       __panelId__: '3'
     labels:
       severity: warning
       team: platform
       product: live-commerce
+      route: robusta
   - uid: lc-cpu-throttle
     title: CPU throttling cao
     condition: C
@@ -308,11 +227,13 @@ groups:
       summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} bị throttle {{ humanizePercentage .Values.A.Value }}'
       description: Pod bị giới hạn CPU, latency chat/đặt hàng sẽ tăng. Xem lại CPU limit.
       __dashboardUid__: lc-workloads
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-cpu-throttle
       __panelId__: '8'
     labels:
       severity: warning
       team: platform
       product: live-commerce
+      route: robusta
   - uid: lc-mem-near-limit
     title: Memory gần chạm limit
     condition: C
@@ -352,11 +273,13 @@ groups:
       summary: '{{ .Labels.namespace }}/{{ .Labels.pod }} dùng {{ humanizePercentage .Values.A.Value }} memory limit'
       description: Sắp bị OOMKill.
       __dashboardUid__: lc-workloads
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-mem-near-limit
       __panelId__: '12'
     labels:
       severity: warning
       team: platform
       product: live-commerce
+      route: robusta
 - orgId: 1
   name: lc-traffic-business
   folder: Live Commerce
@@ -409,7 +332,7 @@ groups:
       summary: '{{ .Labels.svc }}: {{ humanizePercentage .Values.A.Value }} request lỗi 5xx'
       description: Hơn 5 % request tới {{ .Labels.svc }} lỗi 5xx trong 5 phút (chỉ xét khi > 20 request). Vi phạm SLO 99,9 %.
       __dashboardUid__: lc-overview
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#kong-5xx
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-kong-5xx-ratio
       __panelId__: '12'
     labels:
       severity: critical
@@ -455,7 +378,7 @@ groups:
       summary: '{{ .Labels.svc }} trả {{ .Labels.status }} – {{ printf "%.0f" .Values.A.Value }} lần/5m'
       description: Kong không kết nối được service (pod chết, readiness fail hoặc timeout).
       __dashboardUid__: lc-overview
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#kong-5xx
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-kong-upstream-down
       __panelId__: '11'
     labels:
       severity: critical
@@ -498,7 +421,7 @@ groups:
       summary: 💸 {{ printf "%.0f" .Values.A.Value }} đơn hàng ghi thất bại trong 5 phút
       description: order-service không ghi được đơn vào PostgreSQL DBaaS – mất doanh thu trực tiếp. Kiểm tra kết nối DBaaS, pool, max_connections.
       __dashboardUid__: lc-overview
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#order-fail
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-order-write-fail
       __panelId__: '18'
     labels:
       severity: critical
@@ -542,7 +465,7 @@ groups:
       summary: '⚠️ Tồn kho có thể bị lệch: {{ printf "%.0f" .Values.A.Value }} lần hoàn kho thất bại'
       description: Sau khi ghi đơn lỗi, order-service không trả lại tồn kho trên Redis. Cần đối soát tồn kho thủ công.
       __dashboardUid__: lc-overview
-      runbook_url: https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md#order-fail
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-inventory-rollback-fail
       __panelId__: '18'
     labels:
       severity: critical
@@ -586,6 +509,7 @@ groups:
       summary: live-manager gặp {{ printf "%.0f" .Values.A.Value }} lỗi AWS IVS trong 10 phút
       description: Có thể do throttling TPS của IVS, credential hết hạn hoặc VPN/Internet ra AWS gặp sự cố. Seller có thể không phát được.
       __dashboardUid__: lc-overview
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-ivs-errors
       __panelId__: '21'
     labels:
       severity: warning
@@ -629,6 +553,7 @@ groups:
       summary: 🛑 Shop {{ or .Labels.shop "(không rõ)" }} – phiên «{{ or .Labels.title "(không rõ)" }}» bị dừng do {{ .Labels.kind }}
       description: 'Nhãn vi phạm: **{{ .Labels.violation }}**. Session `{{ .Labels.session }}`. moderation-service đã dừng stream. Đội vận hành nội dung cần xem lại.'
       __dashboardUid__: lc-overview
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-moderation-stop
       __panelId__: '22'
     labels:
       severity: info
@@ -671,6 +596,7 @@ groups:
       summary: '{{ .Labels.app }}: {{ printf "%.0f" .Values.A.Value }} dòng log lỗi/5m'
       description: Số log lỗi vượt 50 dòng/5 phút liên tục.
       __dashboardUid__: lc-overview
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-error-log-spike
       __panelId__: '24'
     labels:
       severity: warning
@@ -719,6 +645,7 @@ groups:
       summary: Node {{ .Labels.node }} NotReady
       description: Pod trên node sẽ bị evict sau ~5 phút. Kiểm tra VM trên portal CMC Cloud.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-notready
       __panelId__: '3'
     labels:
       severity: critical
@@ -762,6 +689,7 @@ groups:
       summary: '{{ .Labels.node_name }} CPU {{ humanizePercentage .Values.A.Value }}'
       description: CPU node > 85 % trong 10 phút.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-cpu
       __panelId__: '12'
     labels:
       severity: warning
@@ -805,6 +733,7 @@ groups:
       summary: '{{ .Labels.node_name }} memory {{ humanizePercentage .Values.A.Value }}'
       description: Memory node > 90 %, kubelet sắp evict pod.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-mem
       __panelId__: '13'
     labels:
       severity: critical
@@ -848,6 +777,7 @@ groups:
       summary: '{{ .Labels.node_name }} đĩa / dùng {{ humanizePercentage .Values.A.Value }}'
       description: Khi > 90 % kubelet sẽ GC image và evict pod (DiskPressure).
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-disk
       __panelId__: '15'
     labels:
       severity: warning
@@ -891,6 +821,7 @@ groups:
       summary: '{{ .Labels.node_name }} dự báo hết đĩa trong 24h'
       description: Theo xu hướng 6h gần nhất.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-disk-predict
       __panelId__: '15'
     labels:
       severity: warning
@@ -934,9 +865,98 @@ groups:
       summary: CPU request đã dùng {{ humanizePercentage .Values.A.Value }} allocatable của worker
       description: HPA sẽ tạo pod Pending khi có phiên live lớn. Thêm node vào node group.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-cluster-cpu-req
       __panelId__: '5'
     labels:
       severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-pod-unschedulable
+    title: Pod Pending vì cluster hết chỗ
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (namespace) (kube_pod_status_unschedulable{namespace=~"live-commerce.*|moderation.*"})
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    annotations:
+      summary: '{{ .Labels.namespace }}: {{ printf "%.0f" .Values.A.Value }} pod Pending vì không node nào đủ CPU/memory'
+      description: Cluster Autoscaler của CMC sẽ thêm node trong khoảng 3-5 phút. Nếu vẫn Pending, nodegroup đã ở maxSize.
+      __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-pod-unschedulable
+      __panelId__: '9'
+    labels:
+      severity: warning
+      team: platform
+      product: live-commerce
+  - uid: lc-node-joined
+    title: Node mới tham gia cluster
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: count by (node) (time() - kube_node_created{node=~".*-worker-.*"} < 900)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      relativeTimeRange:
+        from: 0
+        to: 0
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: Node mới {{ .Labels.node }} đã tham gia cluster
+      description: Do Cluster Autoscaler scale up hoặc auto-healing của CMC thay node hỏng. Kiểm tra harbor-ca-installer đã chạy trên node mới.
+      __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-node-joined
+      __panelId__: '2'
+    labels:
+      severity: info
       team: platform
       product: live-commerce
   - uid: lc-target-down
@@ -977,6 +997,7 @@ groups:
       summary: Job {{ .Labels.job }} có {{ printf "%.0f" .Values.A.Value }} target down
       description: Prometheus CMC không scrape được – dashboard và alert khác có thể mù. Báo đội CMC nếu kéo dài.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-target-down
       __panelId__: '25'
     labels:
       severity: warning
@@ -1020,6 +1041,7 @@ groups:
       summary: '{{ printf "%.0f" .Values.A.Value }} API server down'
       description: Control plane do CMC quản lý – mở ticket CMC.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-apiserver-down
       __panelId__: '23'
     labels:
       severity: critical
@@ -1063,8 +1085,14 @@ groups:
       summary: Không còn metric kube-state-metrics
       description: Hầu hết alert workload sẽ không hoạt động. Kiểm tra pod kube-state-metrics ở ns cmc-monitoring.
       __dashboardUid__: lc-cluster
+      runbook_url: https://runbooklive-e-commerce.vercel.app/#lc-ksm-absent
       __panelId__: '25'
     labels:
       severity: critical
       team: platform
       product: live-commerce
+deleteRules:
+- orgId: 1
+  uid: lc-pod-crashloop
+- orgId: 1
+  uid: lc-pod-oom
