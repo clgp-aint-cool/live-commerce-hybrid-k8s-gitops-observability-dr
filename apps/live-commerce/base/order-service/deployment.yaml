@@ -37,10 +37,12 @@ spec:
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /livez  # kiểm tra Redis; lỗi liên tục ~3 phút mới restart
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 9
           resources:
             requests:
               cpu: 100m
