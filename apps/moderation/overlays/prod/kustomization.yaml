@@ -7,7 +7,7 @@ resources:
 images:
 - name: 192.168.6.194/live-commerce/moderation-service
   newName: 192.168.6.194/live-commerce/moderation-service
-  newTag: 26834cb3
+  newTag: 5edb4fca
 patches:
 - patch: |-
     - op: add
