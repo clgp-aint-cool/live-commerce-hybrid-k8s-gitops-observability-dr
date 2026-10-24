@@ -1,11 +1,13 @@
-# live-commerce-infra
+# live-commerce-hybrid-k8s-gitops-observability-dr
+
+> GitOps trên Kubernetes CMC Cloud + AWS (hybrid): ArgoCD, HAProxy + Kong, Prometheus/Grafana/Loki, Velero backup/DR, Sealed Secrets, Palo Alto HA + VPN.
 
 Repo GitOps: **nguồn sự thật** cho mọi thứ chạy trên Kubernetes của dự án Interactive Live Commerce. ArgoCD đọc repo này và đồng bộ vào cluster.
 
 ## Cấu trúc
 
 ```
-live-commerce-infra/
+live-commerce-hybrid-k8s-gitops-observability-dr/
 ├─ argocd/
 │  ├─ install/         # cách cài ArgoCD + bootstrap
 │  ├─ projects/        # AppProject: platform, live-commerce
