@@ -250,6 +250,73 @@ def dashboard(uid, title, panels, variables, tags, desc, refresh="30s", time_fro
 # =====================================================================================
 # 01 — Tổng quan dịch vụ (NOC / điều hành)
 # =====================================================================================
+# Trạng thái mỗi Deployment (0 DOWN, 1 DEGRADED, 2 UP, 3 SCALED 0). Nhánh `or` đầu tiên khớp sẽ thắng:
+#   desired = 0                          → SCALED 0 (cố ý tắt, không phải sự cố)
+#   available = 0                        → DOWN: không pod nào chạy được
+#   available ≥ desired, unavailable = 0 → UP: đủ pod
+#   còn lại                              → DEGRADED: có pod treo (Pending/CrashLoop/ImagePull, rollout kẹt)
+def deploy_status(sel):
+    def m(metric):
+        return f'max by (namespace, deployment) ({metric}{{{sel}}})'
+    d, a, u = (m("kube_deployment_spec_replicas"), m("kube_deployment_status_replicas_available"),
+               m("kube_deployment_status_replicas_unavailable"))
+    return (f'({d} == 0) * 0 + 3 or ({a} == 0) * 0'
+            f' or (({a} >= {d}) and ({u} == 0)) * 0 + 2 or {a} * 0 + 1')
+
+
+DEPLOY_STATUS_MAP = [{"type": "value", "options": {
+    "0": {"text": "DOWN", "color": "red", "index": 0},
+    "1": {"text": "DEGRADED", "color": "orange", "index": 1},
+    "2": {"text": "UP", "color": "green", "index": 2},
+    "3": {"text": "SCALED 0", "color": "text", "index": 3}}}]
+
+
+def deployment_status_section(g, sel):
+    st = deploy_status(sel)
+    g.row("Trạng thái Deployment (UP / DEGRADED / DOWN)")
+    for code, label, color, desc in (
+            (2, "UP", "green", "Deployment chạy đủ số pod mong muốn, không pod nào unavailable."),
+            (1, "DEGRADED", "orange", "Còn pod chạy nhưng thiếu so với desired, hoặc có pod treo "
+                                      "(Pending, CrashLoopBackOff, ImagePullBackOff, rollout kẹt)."),
+            (0, "DOWN", "red", "desired > 0 nhưng không có pod nào available: service đang chết hoàn toàn.")):
+        base = "green" if code == 2 else "transparent"
+        g.add(stat(f"Deployment {label}", [tgt(f'count(({st}) == {code}) or vector(0)', instant=True)],
+                   decimals=0, desc=desc, graph="none",
+                   th=thresholds((None, base), (1, color)) if code != 2 else thresholds((None, "green"))), 8, 3)
+    g.add(table("Trạng thái từng Deployment", [
+        tgt(st, instant=True, fmt="table", ref="A"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_spec_replicas{{{sel}}})', instant=True, fmt="table", ref="B"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_status_replicas_available{{{sel}}})', instant=True, fmt="table", ref="C"),
+        tgt(f'max by (namespace, deployment) (kube_deployment_status_replicas_unavailable{{{sel}}})', instant=True, fmt="table", ref="D"),
+    ], desc="Bấm tên Deployment để mở dashboard Workloads của nó. DOWN/DEGRADED xếp lên đầu.",
+        transformations=[
+            {"id": "merge", "options": {}},
+            {"id": "organize", "options": {
+                "excludeByName": {"Time": True},
+                "indexByName": {"Value #A": 0, "namespace": 1, "deployment": 2, "Value #B": 3, "Value #C": 4, "Value #D": 5},
+                "renameByName": {"Value #A": "Trạng thái", "namespace": "Namespace", "deployment": "Deployment",
+                                 "Value #B": "Desired", "Value #C": "Available", "Value #D": "Unavailable"}}}],
+        sort=[{"displayName": "Trạng thái", "desc": False}],
+        overrides=[
+            {"matcher": {"id": "byName", "options": "Trạng thái"}, "properties": [
+                {"id": "mappings", "value": DEPLOY_STATUS_MAP},
+                {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+                {"id": "custom.width", "value": 110}]},
+            cell_color("Unavailable", "short", thresholds((None, "green"), (1, "red"))),
+            {"matcher": {"id": "byName", "options": "Deployment"}, "properties": [{"id": "links", "value": [{
+                "title": "Mở Workloads", "url": "/d/lc-workloads?var-namespace=${__data.fields.Namespace}"
+                                               "&var-deployment=${__value.raw}&${__url_time_range}"}]}]},
+        ]), 12, 9)
+    g.add({"type": "state-timeline", "title": "Trạng thái Deployment theo thời gian", "datasource": PROM,
+           "description": "Xanh UP · cam DEGRADED · đỏ DOWN · xám SCALED 0.",
+           "targets": [tgt(st, "{{namespace}}/{{deployment}}")],
+           "fieldConfig": {"defaults": {"mappings": DEPLOY_STATUS_MAP, "color": {"mode": "thresholds"},
+                                        "thresholds": thresholds((None, "text")), "custom": {"fillOpacity": 85}},
+                           "overrides": []},
+           "options": {"showValue": "never", "mergeValues": True, "rowHeight": 0.85,
+                       "legend": {"showLegend": False}}}, 12, 9)
+
+
 def overview():
     g = Grid()
     ns = 'namespace=~"$namespace"'
@@ -289,6 +356,8 @@ def overview():
     g.add(stat("Pod restart (1h)",
                [tgt(f'sum(increase(kube_pod_container_status_restarts_total{{{ns}}}[1h])) or vector(0)', instant=True)],
                decimals=0, th=thresholds((None, "green"), (1, "orange"), (5, "red"))), 4, 4)
+
+    deployment_status_section(g, ns)
 
     g.row("Traffic & lỗi qua Kong (theo service)")
     g.add(ts("Request/s theo service", [tgt(f'sum by (svc) (rate({KONG} | svc=~"$service" [$__auto]))', "{{svc}}", ds=LOKI)],
@@ -620,8 +689,7 @@ def rule(uid, title, query, op, value, for_, severity, summary, description, das
         ann["__dashboardUid__"] = dash
         if panel:
             ann["__panelId__"] = str(panel)
-    if runbook:
-        ann["runbook_url"] = runbook
+    ann["runbook_url"] = runbook or f"{RB}#{uid}"
     r = {"uid": uid, "title": title, "condition": "C", "data": [query, thresh(op, value)],
          "noDataState": no_data, "execErrState": "Error", "for": for_, "isPaused": False,
          "annotations": ann, "labels": {"severity": severity, "team": team, "product": "live-commerce"}}
@@ -630,7 +698,8 @@ def rule(uid, title, query, op, value, for_, severity, summary, description, das
     return r
 
 
-RB = "https://github.com/clgp-aint-cool/live-commerce-infra/blob/main/platform/monitoring/grafana/README.md"
+# Trang runbook tĩnh (platform/monitoring/runbook/index.html, host trên Vercel); anchor = uid của rule.
+RB = "https://runbooklive-e-commerce.vercel.app/"
 
 
 def alert_rules():
@@ -644,24 +713,12 @@ def alert_rules():
              "gt", 0, "5m", "critical",
              "{{ .Labels.namespace }}/{{ .Labels.deployment }} thiếu {{ printf \"%.0f\" .Values.A.Value }} replica",
              "Deployment không đạt số replica mong muốn trong 5 phút. Kiểm tra `kubectl -n {{ .Labels.namespace }} describe deploy {{ .Labels.deployment }}` (ImagePullBackOff từ Harbor, thiếu tài nguyên node, probe lỗi).",
-             "lc-workloads", runbook=RB + "#deployment-thieu-replica"),
+             "lc-workloads"),
         rule("lc-deploy-down", "Service DOWN hoàn toàn (0 replica available)",
              q_prom(f'count by (namespace, deployment) ((kube_deployment_status_replicas_available{{{ns}}} == 0) and on (namespace, deployment) (kube_deployment_spec_replicas{{{ns}}} > 0))'),
              "gt", 0, "1m", "critical",
              "🔥 {{ .Labels.namespace }}/{{ .Labels.deployment }} không còn pod nào chạy",
-             "Toàn bộ pod của service đã mất – người dùng đang bị ảnh hưởng trực tiếp.", "lc-workloads",
-             runbook=RB + "#deployment-thieu-replica"),
-        rule("lc-pod-crashloop", "Pod restart liên tục",
-             q_prom(f'sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total{{{ns}}}[15m]))'),
-             "gt", 2, "0s", "warning",
-             "{{ .Labels.namespace }}/{{ .Labels.pod }} restart {{ printf \"%.0f\" .Values.A.Value }} lần/15m",
-             "Container {{ .Labels.container }} đang crash. Xem `kubectl logs --previous` hoặc dashboard Workloads.", "lc-workloads",
-             keep_firing="10m"),
-        rule("lc-pod-oom", "Container bị OOMKilled",
-             q_prom(f'sum by (namespace, pod) (increase(container_oom_events_total{{{ns}, container!=""}}[10m]))'),
-             "gt", 0, "0s", "warning",
-             "{{ .Labels.namespace }}/{{ .Labels.pod }} bị OOMKill",
-             "Container vượt memory limit (512Mi). Cân nhắc tăng limit hoặc tìm rò bộ nhớ.", "lc-workloads"),
+             "Toàn bộ pod của service đã mất – người dùng đang bị ảnh hưởng trực tiếp.", "lc-workloads"),
         rule("lc-container-waiting", "Container kẹt Waiting (ImagePullBackOff / CrashLoopBackOff …)",
              q_prom(f'sum by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{{{ns}}})'),
              "gt", 0, "10m", "warning",
@@ -669,8 +726,8 @@ def alert_rules():
              "ImagePullBackOff thường do robot Harbor hết hạn hoặc CA Harbor chưa có trên node mới.", "lc-workloads"),
         rule("lc-hpa-maxed", "HPA chạm maxReplicas",
              q_prom(f'kube_horizontalpodautoscaler_status_current_replicas{{{ns}}} / kube_horizontalpodautoscaler_spec_max_replicas{{{ns}}}'),
-             "gte", 1, "10m", "warning",
-             "HPA {{ .Labels.namespace }}/{{ .Labels.horizontalpodautoscaler }} đã ở max replica 10 phút",
+             "gte", 1, "3m", "warning",
+             "HPA {{ .Labels.namespace }}/{{ .Labels.horizontalpodautoscaler }} đã ở max replica 3 phút",
              "Không thể scale thêm khi lượng viewer/đơn tiếp tục tăng. Tăng maxReplicas hoặc thêm node trước phiên live lớn.", "lc-workloads"),
         rule("lc-cpu-throttle", "CPU throttling cao",
              q_prom(f'sum by (namespace, pod) (rate(container_cpu_cfs_throttled_periods_total{{{ns}, container!=""}}[5m])) / sum by (namespace, pod) (rate(container_cpu_cfs_periods_total{{{ns}, container!=""}}[5m]))'),
@@ -691,25 +748,24 @@ def alert_rules():
              "gt", 0.05, "3m", "critical",
              "{{ .Labels.svc }}: {{ humanizePercentage .Values.A.Value }} request lỗi 5xx",
              "Hơn 5 % request tới {{ .Labels.svc }} lỗi 5xx trong 5 phút (chỉ xét khi > 20 request). Vi phạm SLO 99,9 %.",
-             "lc-overview", runbook=RB + "#kong-5xx"),
+             "lc-overview"),
         rule("lc-kong-upstream-down", "Kong không gọi được upstream (502/503/504)",
              q_loki(f'sum by (svc, status) (count_over_time({KONG_RULE} | status=~"50[234]" [5m]))'),
              "gt", 10, "0s", "critical",
              "{{ .Labels.svc }} trả {{ .Labels.status }} – {{ printf \"%.0f\" .Values.A.Value }} lần/5m",
-             "Kong không kết nối được service (pod chết, readiness fail hoặc timeout).", "lc-overview",
-             runbook=RB + "#kong-5xx"),
+             "Kong không kết nối được service (pod chết, readiness fail hoặc timeout).", "lc-overview"),
         rule("lc-order-write-fail", "Ghi đơn hàng thất bại",
              q_loki('sum(count_over_time({namespace=~"live-commerce.*", app="order-service"} |= "Ghi đơn thất bại" [5m]))'),
              "gt", 0, "0s", "critical",
              "💸 {{ printf \"%.0f\" .Values.A.Value }} đơn hàng ghi thất bại trong 5 phút",
              "order-service không ghi được đơn vào PostgreSQL DBaaS – mất doanh thu trực tiếp. Kiểm tra kết nối DBaaS, pool, max_connections.",
-             "lc-overview", keep_firing="5m", runbook=RB + "#order-fail"),
+             "lc-overview", keep_firing="5m"),
         rule("lc-inventory-rollback-fail", "Hoàn tồn kho thất bại (lệch tồn kho)",
              q_loki('sum(count_over_time({namespace=~"live-commerce.*", app="order-service"} |= "Hoàn tồn kho thất bại" [10m]))'),
              "gt", 0, "0s", "critical",
              "⚠️ Tồn kho có thể bị lệch: {{ printf \"%.0f\" .Values.A.Value }} lần hoàn kho thất bại",
              "Sau khi ghi đơn lỗi, order-service không trả lại tồn kho trên Redis. Cần đối soát tồn kho thủ công.",
-             "lc-overview", keep_firing="15m", runbook=RB + "#order-fail"),
+             "lc-overview", keep_firing="15m"),
         rule("lc-ivs-errors", "Lỗi gọi AWS IVS",
              q_loki('sum(count_over_time({namespace=~"live-commerce.*", app="live-manager"} |~ "(PutMetadata|CreateStreamKey|ListStreams) lỗi|Không xóa được kênh" [10m]))'),
              "gt", 3, "0s", "warning",
@@ -766,6 +822,20 @@ def alert_rules():
              "gt", 0.85, "15m", "warning",
              "CPU request đã dùng {{ humanizePercentage .Values.A.Value }} allocatable của worker",
              "HPA sẽ tạo pod Pending khi có phiên live lớn. Thêm node vào node group.", "lc-cluster"),
+        # Pod không có chỗ chạy: dấu hiệu Cluster Autoscaler cần thêm node (hoặc nodegroup đã ở maxSize).
+        rule("lc-pod-unschedulable", "Pod Pending vì cluster hết chỗ",
+             q_prom(f'sum by (namespace) (kube_pod_status_unschedulable{{{ns}}})'),
+             "gt", 0, "1m", "warning",
+             "{{ .Labels.namespace }}: {{ printf \"%.0f\" .Values.A.Value }} pod Pending vì không node nào đủ CPU/memory",
+             "Cluster Autoscaler của CMC sẽ thêm node trong khoảng 3-5 phút. Nếu vẫn Pending, nodegroup đã ở maxSize.",
+             "lc-cluster"),
+        # Node tạo trong 15 phút gần nhất: Cluster Autoscaler scale up hoặc auto-healing thay node chết.
+        rule("lc-node-joined", "Node mới tham gia cluster",
+             q_prom('count by (node) (time() - kube_node_created{node=~".*-worker-.*"} < 900)'),
+             "gt", 0, "0s", "info",
+             "Node mới {{ .Labels.node }} đã tham gia cluster",
+             "Do Cluster Autoscaler scale up hoặc auto-healing của CMC thay node hỏng. Kiểm tra harbor-ca-installer đã chạy trên node mới.",
+             "lc-cluster"),
         rule("lc-target-down", "Mất scrape metrics (node-exporter / kube-state-metrics / kubelet)",
              q_prom('sum by (job) (up{job!="kubernetes-apiservers"} == 0)'),
              "gt", 0, "5m", "warning",
@@ -782,7 +852,19 @@ def alert_rules():
              "Hầu hết alert workload sẽ không hoạt động. Kiểm tra pod kube-state-metrics ở ns cmc-monitoring.", "lc-cluster",
              no_data="OK"),
     ]})
-    return {"apiVersion": 1, "groups": groups}
+    for g in groups:
+        for r in g["rules"]:
+            if r["uid"] in ROBUSTA_RULES:
+                r["labels"]["route"] = "robusta"
+    # Provisioning không tự xóa rule đã bỏ khỏi file: phải liệt kê ở đây.
+    return {"apiVersion": 1, "groups": groups,
+            "deleteRules": [{"orgId": 1, "uid": uid} for uid in ("lc-pod-crashloop", "lc-pod-oom")]}
+
+
+# Alert pod/deployment: gửi qua Robusta (đính kèm log, event, runbook), KHÔNG gửi thẳng Discord.
+# Pod crash và OOMKilled do Robusta tự bắt từ Kubernetes (on_pod_crash_loop / on_pod_oom_killed), không có rule Grafana.
+ROBUSTA_RULES = {"lc-deploy-unavailable", "lc-deploy-down", "lc-container-waiting",
+                 "lc-hpa-maxed", "lc-cpu-throttle", "lc-mem-near-limit"}
 
 
 def contact_points():
@@ -801,6 +883,9 @@ def contact_points():
         cps.append({"orgId": 1, "name": name, "receivers": [{
             "uid": name, "type": "discord", "disableResolveMessage": False,
             "settings": {"url": "${%s}" % env, "title": title, "message": message, "use_discord_username": False}}]})
+    cps.append({"orgId": 1, "name": "robusta-rca", "receivers": [{
+        "uid": "robusta-rca", "type": "webhook", "disableResolveMessage": False,
+        "settings": {"url": "http://robusta-runner.robusta.svc.cluster.local:80/api/alerts"}}]})
     # File này chứa webhook (bí mật) → render bằng envsubst rồi đóng vào Secret, xem README.
     return {"apiVersion": 1, "contactPoints": cps}
 
@@ -849,6 +934,10 @@ def policies():
         "group_by": ["grafana_folder", "alertname", "namespace"],
         "group_wait": "30s", "group_interval": "5m", "repeat_interval": "4h",
         "routes": [
+            # Alert pod/deployment (ROBUSTA_RULES): Robusta gửi Discord kèm log/event/runbook, tránh 2 tin trùng.
+            {"receiver": "robusta-rca", "object_matchers": [["route", "=", "robusta"]],
+             "group_by": ["alertname", "namespace"], "group_wait": "10s", "group_interval": "2m",
+             "repeat_interval": "30m", "continue": False},
             # Moderation: về kênh Trust & Safety, không làm ồn kênh on-call.
             # group theo session: mỗi phiên bị dừng là một tin Discord riêng, gửi gần như ngay.
             {"receiver": "discord-trust-safety", "object_matchers": [["team", "=", "trust-safety"]],
@@ -885,10 +974,36 @@ RULE_PANEL = {
     "lc-node-disk": "Đĩa / dùng % (+ dự báo đầy)",
     "lc-node-disk-predict": "Đĩa / dùng % (+ dự báo đầy)",
     "lc-cluster-cpu-req": "CPU requested / allocatable",
+    "lc-pod-unschedulable": "Pod / capacity",
+    "lc-node-joined": "Node Ready",
     "lc-target-down": "Scrape target theo job",
     "lc-apiserver-down": "API server up",
     "lc-ksm-absent": "Scrape target theo job",
 }
+
+
+def robusta_playbooks(rules):
+    """customPlaybooks của Robusta (helm values). Robusta Discord không hiện annotation runbook_url thành nút,
+    nên mỗi alert một playbook gắn đúng link runbook. Trigger khớp theo tên alert (title rule Grafana)."""
+    sink = ["discord_critical_sink"]
+    pod = [{"pod_events_enricher": {}}, {"pod_issue_investigator": {}}]
+    deploy = [{"deployment_status_enricher": {}}, {"deployment_events_enricher": {}}, {"pod_issue_investigator": {}}]
+    enrich = {"lc-deploy-unavailable": deploy, "lc-deploy-down": deploy, "lc-container-waiting": pod,
+              "lc-cpu-throttle": pod, "lc-mem-near-limit": pod, "lc-hpa-maxed": []}
+
+    def runbook(uid, title):
+        return {"external_video_enricher": {"name": f"📕 Runbook: {title}", "url": f"{RB}#{uid}"}}
+
+    # Pod crash / OOMKilled / ImagePullBackOff: dùng builtin playbook của Robusta (rate limit 1h mỗi pod).
+    # KHÔNG thêm playbook riêng gắn runbook cho chúng: enricher chạy trước report_crash_loop tạo thêm 1 finding
+    # INFO "Update to pod …" (tin xanh thừa). Link runbook cho các alert này do alert-bot gắn vào ticket.
+    pbs = []
+    for g in rules["groups"]:
+        for r in g["rules"]:
+            if r["uid"] in ROBUSTA_RULES:
+                pbs.append({"triggers": [{"on_prometheus_alert": {"alert_name": r["title"]}}],
+                            "actions": [runbook(r["uid"], r["title"])] + enrich[r["uid"]], "sinks": sink})
+    return {"customPlaybooks": pbs}
 
 
 def link_panels(rules, dashboards):
@@ -921,14 +1036,20 @@ def main():
         (ROOT / "dashboards" / f"{name}.json").write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n")
 
     class D(yaml.SafeDumper):
-        pass
+        def ignore_aliases(self, data):   # không sinh &id001/*id001 khi dùng lại cùng dict/list
+            return True
 
     def str_rep(dumper, s):
         style = "|" if "\n" in s else None
         return dumper.represent_scalar("tag:yaml.org,2002:str", s, style=style)
     D.add_representer(str, str_rep)
 
-    for fname, obj in (("rules.yaml", link_panels(alert_rules(), dashboards)), ("contact-points.tmpl.yaml", contact_points()),
+    rules = link_panels(alert_rules(), dashboards)
+    (ROOT.parent / "robusta").mkdir(exist_ok=True)
+    (ROOT.parent / "robusta" / "playbooks.yaml").write_text(
+        "# SINH TỰ ĐỘNG bởi grafana/gen.py – sửa gen.py rồi chạy lại. Áp dụng: xem README.md cùng thư mục.\n"
+        + yaml.dump(robusta_playbooks(rules), Dumper=D, allow_unicode=True, sort_keys=False, width=200))
+    for fname, obj in (("rules.yaml", rules), ("contact-points.tmpl.yaml", contact_points()),
                        ("templates.yaml", templates()),
                        ("policies.yaml", policies())):
         (ROOT / "alerting" / fname).write_text(

@@ -11,6 +11,18 @@ policies:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+  - receiver: robusta-rca
+    object_matchers:
+    - - route
+      - '='
+      - robusta
+    group_by:
+    - alertname
+    - namespace
+    group_wait: 10s
+    group_interval: 2m
+    repeat_interval: 30m
+    continue: false
   - receiver: discord-trust-safety
     object_matchers:
     - - team

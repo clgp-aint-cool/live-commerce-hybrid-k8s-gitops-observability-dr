@@ -1,0 +1,68 @@
+# SINH TỰ ĐỘNG bởi grafana/gen.py – sửa gen.py rồi chạy lại. Áp dụng: xem README.md cùng thư mục.
+customPlaybooks:
+- triggers:
+  - on_prometheus_alert:
+      alert_name: Deployment thiếu replica
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: Deployment thiếu replica'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-deploy-unavailable
+  - deployment_status_enricher: {}
+  - deployment_events_enricher: {}
+  - pod_issue_investigator: {}
+  sinks:
+  - discord_critical_sink
+- triggers:
+  - on_prometheus_alert:
+      alert_name: Service DOWN hoàn toàn (0 replica available)
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: Service DOWN hoàn toàn (0 replica available)'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-deploy-down
+  - deployment_status_enricher: {}
+  - deployment_events_enricher: {}
+  - pod_issue_investigator: {}
+  sinks:
+  - discord_critical_sink
+- triggers:
+  - on_prometheus_alert:
+      alert_name: Container kẹt Waiting (ImagePullBackOff / CrashLoopBackOff …)
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: Container kẹt Waiting (ImagePullBackOff / CrashLoopBackOff …)'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-container-waiting
+  - pod_events_enricher: {}
+  - pod_issue_investigator: {}
+  sinks:
+  - discord_critical_sink
+- triggers:
+  - on_prometheus_alert:
+      alert_name: HPA chạm maxReplicas
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: HPA chạm maxReplicas'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-hpa-maxed
+  sinks:
+  - discord_critical_sink
+- triggers:
+  - on_prometheus_alert:
+      alert_name: CPU throttling cao
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: CPU throttling cao'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-cpu-throttle
+  - pod_events_enricher: {}
+  - pod_issue_investigator: {}
+  sinks:
+  - discord_critical_sink
+- triggers:
+  - on_prometheus_alert:
+      alert_name: Memory gần chạm limit
+  actions:
+  - external_video_enricher:
+      name: '📕 Runbook: Memory gần chạm limit'
+      url: https://runbooklive-e-commerce.vercel.app/#lc-mem-near-limit
+  - pod_events_enricher: {}
+  - pod_issue_investigator: {}
+  sinks:
+  - discord_critical_sink

@@ -38,3 +38,11 @@ contactPoints:
         {{ if eq .Status "firing" }}<@&${DISCORD_ROLE_TRUST_SAFETY}>
         {{ end }}{{ template "lc.discord.message" . }}
       use_discord_username: false
+- orgId: 1
+  name: robusta-rca
+  receivers:
+  - uid: robusta-rca
+    type: webhook
+    disableResolveMessage: false
+    settings:
+      url: http://robusta-runner.robusta.svc.cluster.local:80/api/alerts
