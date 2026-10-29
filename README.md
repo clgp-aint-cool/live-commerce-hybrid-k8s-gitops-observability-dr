@@ -1,48 +1,52 @@
 # live-commerce-hybrid-k8s-gitops-observability-dr
 
-> GitOps trên Kubernetes CMC Cloud + AWS (hybrid): ArgoCD, HAProxy + Kong, Prometheus/Grafana/Loki, Velero backup/DR, Sealed Secrets, Palo Alto HA + VPN.
+> Hạ tầng GitOps cho nền tảng **Interactive Live Commerce** trên Hybrid Cloud: Kubernetes CMC Cloud chạy ứng dụng và dữ liệu, AWS lo livestream (IVS) và kiểm duyệt AI. ArgoCD đọc repo này và đồng bộ mọi thứ vào cluster.
 
-Repo GitOps: **nguồn sự thật** cho mọi thứ chạy trên Kubernetes của dự án Interactive Live Commerce. ArgoCD đọc repo này và đồng bộ vào cluster.
+Mã nguồn ứng dụng: [realtime-live-commerce-flashsale-microservices](https://github.com/clgp-aint-cool/realtime-live-commerce-flashsale-microservices)
+
+![Kiến trúc Interactive Live Commerce trên Hybrid Cloud](docs/images/architecture.png)
+
+## Thành phần
+
+| Lớp | Công nghệ |
+|---|---|
+| GitOps | ArgoCD (App of Apps), Kustomize base + overlay dev/prod, Sealed Secrets |
+| Edge | Cloudflare WAF/CDN → Palo Alto VM-Series HA → CMC Load Balancer → HAProxy Ingress → Kong |
+| Giám sát | Prometheus, Grafana, Loki + Alloy, cảnh báo Discord, Robusta |
+| Tự mở rộng | HPA theo request (prometheus-adapter), CMC node auto-scaling |
+| Backup / DR | Velero (Kopia) → CMC Object Storage, DBaaS PostgreSQL PITR |
+| Hybrid | Site-to-Site VPN IPsec tới AWS VPC, GlobalProtect cho quản trị |
+
+## Luồng triển khai
+
+```mermaid
+flowchart LR
+  dev[Push code<br/>repo app] --> ci[GitHub Actions<br/>build image]
+  ci --> harbor[(Harbor)]
+  ci -->|cập nhật tag dev| infra[repo infra]
+  infra --> argo[ArgoCD]
+  argo -->|auto sync| devns[live-commerce-dev]
+  infra -->|promote.yml: PR dev → prod| argo
+  argo -->|sync sau khi merge| prodns[live-commerce-prod]
+  harbor -.pull.-> devns & prodns
+```
 
 ## Cấu trúc
 
 ```
-live-commerce-hybrid-k8s-gitops-observability-dr/
-├─ argocd/
-│  ├─ install/         # cách cài ArgoCD + bootstrap
-│  ├─ projects/        # AppProject: platform, live-commerce
-│  ├─ bootstrap/       # root-app.yaml (App of Apps)
-│  └─ apps/
-│     ├─ platform/     # Application: sealed-secrets, haproxy, kong, monitoring, loki, alloy, velero, edge
-│     └─ workloads/    # Application: live-commerce-{dev,prod}, moderation-{dev,prod}
-├─ platform/           # values Helm + manifest của các add-on dùng chung
-│  ├─ edge/            # Ingress HAProxy -> Kong
-│  ├─ haproxy-ingress/ ├─ kong/ ├─ monitoring/ ├─ velero/ └─ sealed-secrets/
-├─ apps/               # workload của dự án (Kustomize: base + overlays)
-│  ├─ live-commerce/{base,overlays/{dev,prod}}   # chat, product, order, web, kong-routes
-│  └─ moderation/{base,overlays/{dev,prod}}      # moderation-service + webhook NodePort
-├─ cloud/              # IaC ngoài K8s: aws/ (CDK), network/ (Palo Alto, VPN)
-├─ scripts/promote.sh  # sao chép tag dev -> prod
-├─ docs/               # argocd, gitops-flow, environments, secrets, object-storage, load-testing
-└─ .github/workflows/  # validate.yml (PR), promote.yml (thủ công)
+argocd/      # install, projects, bootstrap (root-app), apps/{platform,workloads}
+platform/    # Helm values + manifest: edge, haproxy-ingress, kong, monitoring, velero, sealed-secrets
+apps/        # live-commerce, moderation: base + overlays/{dev,prod}
+cloud/       # aws/ (CDK), network/ (Palo Alto, VPN)
+scripts/     # promote.sh: chép tag dev -> prod
+docs/        # argocd, gitops-flow, environments, secrets, object-storage, load-testing
 ```
 
 ## Bắt đầu
 
-> Triển khai thủ công lên Kubernetes CMC Cloud (chưa có CD, image từ Harbor 192.168.6.194): làm theo [docs/migrate-cmc-k8s.md](docs/migrate-cmc-k8s.md).
->
-> Dùng ArgoCD (GitOps): xem [docs/argocd.md](docs/argocd.md), gồm giải thích từng thành phần của repo này.
+1. Thay các placeholder: `grep -R "<ORG>\|harbor.example.local\|<PIN_VERSION>" .`
+2. Cài ArgoCD và bootstrap: [argocd/install/README.md](argocd/install/README.md)
+3. Tạo secret: [docs/secrets.md](docs/secrets.md)
+4. Kiểm tra trước khi push: `make validate` (yamllint + kustomize build + kubeconform)
 
-1. Thay `<ORG>` bằng tên GitHub org/user: `grep -R "<ORG>" .`
-2. Thay `harbor.example.local` và `live.example.com` bằng giá trị thật.
-3. Ghim phiên bản: tìm `<PIN_VERSION>` trong `argocd/apps/platform/*` và `platform/velero/values.yaml`.
-4. Làm theo [argocd/install/README.md](argocd/install/README.md) để cài ArgoCD và bootstrap.
-5. Tạo các secret theo [docs/secrets.md](docs/secrets.md).
-
-## Kiểm tra cục bộ
-
-```bash
-make validate     # yamllint + kustomize build + kubeconform (cần cài 3 công cụ này)
-```
-
-Xem thêm: [docs/gitops-flow.md](docs/gitops-flow.md), [docs/environments.md](docs/environments.md).
+Triển khai thủ công không qua ArgoCD: [docs/migrate-cmc-k8s.md](docs/migrate-cmc-k8s.md). Thêm: [gitops-flow](docs/gitops-flow.md) · [environments](docs/environments.md) · [load-testing](docs/load-testing.md).
