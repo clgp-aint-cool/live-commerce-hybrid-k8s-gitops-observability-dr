@@ -17,7 +17,8 @@ spec:
           type: Utilization
           averageUtilization: 50
     # Request/giây qua Kong (prometheus-adapter, platform/monitoring/prometheus-adapter-values.yaml).
-    # AverageValue: replicas = tổng rps / 5, mỗi pod ~5 rps. (Value sẽ nhân theo số pod hiện tại → scale mãi tới max.)
+    # AverageValue: replicas = tổng rps / 50. nginx tĩnh ~0.4m CPU mỗi rps nên CPU gần như không bao giờ kích hoạt, chỉ metric này.
+    # (Value sẽ nhân theo số pod hiện tại → scale mãi tới max.)
     - type: Object
       object:
         metric:
@@ -28,4 +29,4 @@ spec:
           name: web
         target:
           type: AverageValue
-          averageValue: "5"
+          averageValue: "50"
